@@ -23,7 +23,12 @@ OMX_ERRORTYPE NX_VideoDecoder_ComponentInit (OMX_HANDLETYPE hComponent);
 #include <media/hardware/MetadataBufferType.h>
 
 #include <nx_fourcc.h>
+
+#if ARM64
+#include <nx_video_api_64.h>
+#else
 #include <nx_video_api.h>
+#endif
 
 #define FFDEC_VID_VER_MAJOR			0
 #define FFDEC_VID_VER_MINOR			1

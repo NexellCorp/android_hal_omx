@@ -416,7 +416,7 @@ void NX_BaseCommandThread( void *arg )
 			break;
 		}
 
-		NX_DbgTrace("%s() : pCmd = 0x%08x\n", __FUNCTION__, (unsigned int)pCmd);
+		NX_DbgTrace("%s() : pCmd = %p\n", __FUNCTION__, pCmd);
 
 		if( pCmd != NULL ){
 			if( pComp->cbCmdProcedure )

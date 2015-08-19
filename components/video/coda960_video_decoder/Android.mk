@@ -13,6 +13,12 @@ ifeq "5" "$(ANDROID_VERSION_MAJOR)"
 LOCAL_CFLAGS += -DLOLLIPOP=1
 endif
 
+ifeq ($(TARGET_ARCH),arm64)
+LOCAL_CFLAGS += -DARM64=1
+else
+LOCAL_CFLAGS += -DARM64=0
+endif
+
 NX_HW_TOP := $(TOP)/hardware/samsung_slsi/slsiap
 NX_HW_INCLUDE := $(NX_HW_TOP)/include
 NX_LINUX_TOP := $(TOP)/linux/platform/$(TARGET_CPU_VARIANT2)

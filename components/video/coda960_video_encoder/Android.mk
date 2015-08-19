@@ -18,6 +18,12 @@ ifeq "5" "$(ANDROID_VERSION_MAJOR)"
 LOCAL_CFLAGS += -DLOLLIPOP=1
 endif
 
+ifeq ($(TARGET_ARCH),arm64)
+LOCAL_CFLAGS += -DARM64=1
+else
+LOCAL_CFLAGS += -DARM64=0
+endif
+
 OMX_TOP := $(NX_HW_TOP)/omx
 RATECONTROL_PATH := $(NX_LINUX_TOP)/library/lib/ratecontrol
 

@@ -1336,7 +1336,7 @@ static OMX_S32 EncodeFrame(NX_VIDENC_COMP_TYPE *pEncComp, NX_QUEUE *pInQueue, NX
 			return ion_fd;
 		}
 		uint8_t *inData = mmap(NULL, hPrivate->size, PROT_READ|PROT_WRITE, MAP_SHARED, hPrivate->share_fd, 0);
-		if((uint32_t)inData == 0xffffffff)
+		if( inData == MAP_FAILED )
 		{
 			ALOGE("%s: failed to mmap", __func__);
 			close(ion_fd);

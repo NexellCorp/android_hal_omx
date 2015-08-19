@@ -11,7 +11,11 @@
 #include <hardware/gralloc.h>
 #include <media/hardware/MetadataBufferType.h>
 
+#if ARM64
+#include <nx_video_api_64.h>
+#else
 #include <nx_video_api.h>
+#endif
 
 #ifdef NX_DYNAMIC_COMPONENTS
 //	This Function need for dynamic registration

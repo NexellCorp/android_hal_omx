@@ -289,7 +289,7 @@ OMX_API OMX_ERRORTYPE OMX_APIENTRY NX_OMX_GetHandle(
 			}
 		}
 	}else{
-		NX_LOGV("Alread opened shared object!(pCompnentInit = 0x%08x)\n", (int32_t)pCompInfo->ComponentInit);
+		NX_LOGV("Alread opened shared object!(pCompnentInit = %p)\n", pCompInfo->ComponentInit);
 		ComponentInit = pCompInfo->ComponentInit;
 	}
 
