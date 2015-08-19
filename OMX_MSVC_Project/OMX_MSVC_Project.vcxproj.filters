@@ -1,0 +1,261 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="codec">
+      <UniqueIdentifier>{fd571b06-008e-4d03-a9af-1bdba00f9b04}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="common">
+      <UniqueIdentifier>{159ae97e-2096-4eb9-bacc-22a735899d81}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="components">
+      <UniqueIdentifier>{be15f520-7fb2-4e21-a005-5a5040985f7e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="components\base">
+      <UniqueIdentifier>{33681958-7805-42dc-a249-7f350d1bfd64}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="components\video">
+      <UniqueIdentifier>{3957b031-2d67-4d1b-88d4-d4fb54c642f7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="components\video\coda960_video_decoder">
+      <UniqueIdentifier>{c658cb66-704c-4b5e-a70f-d17e34bbfdf6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="components\video\coda960_video_encoder">
+      <UniqueIdentifier>{e48081f6-45f5-43f2-9359-80423b395fef}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="core">
+      <UniqueIdentifier>{ac89e672-50ae-4fe2-9108-ca2afb3a5ead}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="core\inc">
+      <UniqueIdentifier>{743917e5-febb-49f2-92a0-5b91d709be29}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include">
+      <UniqueIdentifier>{6cade7e7-ef26-4cc5-bb4d-20c7cf740181}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="libstagefrighthw">
+      <UniqueIdentifier>{f836433b-117f-43fb-8cbd-52068fd402e1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="components\audio">
+      <UniqueIdentifier>{19ba3efa-ef58-4ac6-b099-5e8df2eb3989}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="extractor">
+      <UniqueIdentifier>{80229fae-b7c3-4bb4-9b29-1d97f4a6cfa3}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\Android.mk" />
+    <None Include="..\codec\Android.mk">
+      <Filter>codec</Filter>
+    </None>
+    <None Include="..\common\Android.mk">
+      <Filter>common</Filter>
+    </None>
+    <None Include="..\components\Android.mk">
+      <Filter>components</Filter>
+    </None>
+    <None Include="..\components\base\Android.mk">
+      <Filter>components\base</Filter>
+    </None>
+    <None Include="..\components\video\coda960_video_decoder\Android.mk">
+      <Filter>components\video\coda960_video_decoder</Filter>
+    </None>
+    <None Include="..\components\video\coda960_video_encoder\Android.mk">
+      <Filter>components\video\coda960_video_encoder</Filter>
+    </None>
+    <None Include="..\core\Android.mk">
+      <Filter>core</Filter>
+    </None>
+    <None Include="..\core\content.pkg">
+      <Filter>core</Filter>
+    </None>
+    <None Include="..\libstagefrighthw\Android.mk">
+      <Filter>libstagefrighthw</Filter>
+    </None>
+    <None Include="..\components\audio\audio_decoder_ffmpeg\Android.mk">
+      <Filter>components\audio</Filter>
+    </None>
+    <None Include="..\extractor\ffmpeg\Android.mk">
+      <Filter>extractor</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\common\NX_OMXSemaphore.c">
+      <Filter>common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\common\NX_OMXDebugMsg.c">
+      <Filter>common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\common\NX_OMXQueue.c">
+      <Filter>common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\components\base\NX_OMXCommon.c">
+      <Filter>components\base</Filter>
+    </ClCompile>
+    <ClCompile Include="..\components\base\NX_OMXBaseComponent.c">
+      <Filter>components\base</Filter>
+    </ClCompile>
+    <ClCompile Include="..\components\base\NX_OMXBasePort.c">
+      <Filter>components\base</Filter>
+    </ClCompile>
+    <ClCompile Include="..\components\video\coda960_video_decoder\NX_RVDecoder.c">
+      <Filter>components\video\coda960_video_decoder</Filter>
+    </ClCompile>
+    <ClCompile Include="..\components\video\coda960_video_decoder\NX_VC1Decoder.c">
+      <Filter>components\video\coda960_video_decoder</Filter>
+    </ClCompile>
+    <ClCompile Include="..\components\video\coda960_video_decoder\NX_AVCDecoder.c">
+      <Filter>components\video\coda960_video_decoder</Filter>
+    </ClCompile>
+    <ClCompile Include="..\components\video\coda960_video_decoder\NX_DecoderUtil.c">
+      <Filter>components\video\coda960_video_decoder</Filter>
+    </ClCompile>
+    <ClCompile Include="..\components\video\coda960_video_decoder\NX_Div3Decoder.c">
+      <Filter>components\video\coda960_video_decoder</Filter>
+    </ClCompile>
+    <ClCompile Include="..\components\video\coda960_video_decoder\NX_MPEG4Decoder.c">
+      <Filter>components\video\coda960_video_decoder</Filter>
+    </ClCompile>
+    <ClCompile Include="..\components\video\coda960_video_decoder\NX_OMXVideoDecoder.c">
+      <Filter>components\video\coda960_video_decoder</Filter>
+    </ClCompile>
+    <ClCompile Include="..\components\video\coda960_video_encoder\NX_OMXVideoEncoder.c">
+      <Filter>components\video\coda960_video_encoder</Filter>
+    </ClCompile>
+    <ClCompile Include="..\core\NX_OMXCore.c">
+      <Filter>core</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libstagefrighthw\NX_OMXPlugin.cpp">
+      <Filter>libstagefrighthw</Filter>
+    </ClCompile>
+    <ClCompile Include="..\components\video\coda960_video_decoder\NX_AVCUtil.c">
+      <Filter>components\video\coda960_video_decoder</Filter>
+    </ClCompile>
+    <ClCompile Include="..\components\audio\audio_decoder_ffmpeg\NX_OMXAudioDecoderFFMpeg.c">
+      <Filter>components\audio</Filter>
+    </ClCompile>
+    <ClCompile Include="..\extractor\ffmpeg\ffmpeg_source.cpp">
+      <Filter>extractor</Filter>
+    </ClCompile>
+    <ClCompile Include="..\extractor\ffmpeg\ffmpeg_utils.cpp">
+      <Filter>extractor</Filter>
+    </ClCompile>
+    <ClCompile Include="..\extractor\ffmpeg\FFmpegExtractor.cpp">
+      <Filter>extractor</Filter>
+    </ClCompile>
+    <ClCompile Include="..\components\video\coda960_video_decoder\NX_MPEG2Decoder.c">
+      <Filter>components\video\coda960_video_decoder</Filter>
+    </ClCompile>
+    <ClCompile Include="..\components\video\coda960_video_decoder\NX_VP8Decoder.c">
+      <Filter>components\video\coda960_video_decoder</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\components\base\NX_OMXCommon.h">
+      <Filter>components\base</Filter>
+    </ClInclude>
+    <ClInclude Include="..\components\base\NX_OMXBaseComponent.h">
+      <Filter>components\base</Filter>
+    </ClInclude>
+    <ClInclude Include="..\components\base\NX_OMXBasePort.h">
+      <Filter>components\base</Filter>
+    </ClInclude>
+    <ClInclude Include="..\components\video\coda960_video_decoder\NX_DecoderUtil.h">
+      <Filter>components\video\coda960_video_decoder</Filter>
+    </ClInclude>
+    <ClInclude Include="..\components\video\coda960_video_decoder\NX_OMXVideoDecoder.h">
+      <Filter>components\video\coda960_video_decoder</Filter>
+    </ClInclude>
+    <ClInclude Include="..\components\video\coda960_video_encoder\NX_OMXVideoEncoder.h">
+      <Filter>components\video\coda960_video_encoder</Filter>
+    </ClInclude>
+    <ClInclude Include="..\core\inc\OMX_Other.h">
+      <Filter>core\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="..\core\inc\OMX_Types.h">
+      <Filter>core\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="..\core\inc\OMX_Video.h">
+      <Filter>core\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="..\core\inc\OMX_VideoExt.h">
+      <Filter>core\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="..\core\inc\NX_OMXComponentMgr.h">
+      <Filter>core\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="..\core\inc\OMX_Audio.h">
+      <Filter>core\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="..\core\inc\OMX_Component.h">
+      <Filter>core\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="..\core\inc\OMX_ComponentExt.h">
+      <Filter>core\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="..\core\inc\OMX_ContentPipe.h">
+      <Filter>core\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="..\core\inc\OMX_Core.h">
+      <Filter>core\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="..\core\inc\OMX_CoreExt.h">
+      <Filter>core\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="..\core\inc\OMX_Image.h">
+      <Filter>core\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="..\core\inc\OMX_Index.h">
+      <Filter>core\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="..\core\inc\OMX_IndexExt.h">
+      <Filter>core\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="..\core\inc\OMX_IVCommon.h">
+      <Filter>core\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\OMX_AndroidTypes.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\NX_MediaTypes.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\NX_OMXDebugMsg.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\NX_OMXMem.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\NX_OMXQueue.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\NX_OMXSemaphore.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\NX_VpuTypes.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\nxvpu_coda960.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\nxvpu_ffmpeg.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\libstagefrighthw\NX_OMXPlugin.h">
+      <Filter>libstagefrighthw</Filter>
+    </ClInclude>
+    <ClInclude Include="..\components\video\coda960_video_decoder\NX_AVCUtil.h">
+      <Filter>components\video\coda960_video_decoder</Filter>
+    </ClInclude>
+    <ClInclude Include="..\components\audio\audio_decoder_ffmpeg\NX_OMXAudioDecoderFFMpeg.h">
+      <Filter>components\audio</Filter>
+    </ClInclude>
+    <ClInclude Include="..\extractor\ffmpeg\ffmpeg_source.h">
+      <Filter>extractor</Filter>
+    </ClInclude>
+    <ClInclude Include="..\extractor\ffmpeg\ffmpeg_utils.h">
+      <Filter>extractor</Filter>
+    </ClInclude>
+    <ClInclude Include="..\extractor\ffmpeg\FFmpegExtractor.h">
+      <Filter>extractor</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>

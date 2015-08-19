@@ -1,0 +1,174 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\Android.mk" />
+    <None Include="..\codec\Android.mk" />
+    <None Include="..\common\Android.mk" />
+    <None Include="..\components\Android.mk" />
+    <None Include="..\components\audio\audio_decoder_ffmpeg\Android.mk" />
+    <None Include="..\components\base\Android.mk" />
+    <None Include="..\components\video\coda960_video_decoder\Android.mk" />
+    <None Include="..\components\video\coda960_video_encoder\Android.mk" />
+    <None Include="..\core\Android.mk" />
+    <None Include="..\core\content.pkg" />
+    <None Include="..\extractor\ffmpeg\Android.mk" />
+    <None Include="..\libstagefrighthw\Android.mk" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\common\NX_OMXDebugMsg.c" />
+    <ClCompile Include="..\common\NX_OMXQueue.c" />
+    <ClCompile Include="..\common\NX_OMXSemaphore.c" />
+    <ClCompile Include="..\components\audio\audio_decoder_ffmpeg\NX_OMXAudioDecoderFFMpeg.c" />
+    <ClCompile Include="..\components\base\NX_OMXBaseComponent.c" />
+    <ClCompile Include="..\components\base\NX_OMXBasePort.c" />
+    <ClCompile Include="..\components\base\NX_OMXCommon.c" />
+    <ClCompile Include="..\components\video\coda960_video_decoder\NX_AVCDecoder.c" />
+    <ClCompile Include="..\components\video\coda960_video_decoder\NX_AVCUtil.c" />
+    <ClCompile Include="..\components\video\coda960_video_decoder\NX_DecoderUtil.c" />
+    <ClCompile Include="..\components\video\coda960_video_decoder\NX_Div3Decoder.c" />
+    <ClCompile Include="..\components\video\coda960_video_decoder\NX_MPEG2Decoder.c" />
+    <ClCompile Include="..\components\video\coda960_video_decoder\NX_MPEG4Decoder.c" />
+    <ClCompile Include="..\components\video\coda960_video_decoder\NX_OMXVideoDecoder.c" />
+    <ClCompile Include="..\components\video\coda960_video_decoder\NX_RVDecoder.c" />
+    <ClCompile Include="..\components\video\coda960_video_decoder\NX_VC1Decoder.c" />
+    <ClCompile Include="..\components\video\coda960_video_decoder\NX_VP8Decoder.c" />
+    <ClCompile Include="..\components\video\coda960_video_encoder\NX_OMXVideoEncoder.c" />
+    <ClCompile Include="..\core\NX_OMXCore.c" />
+    <ClCompile Include="..\extractor\ffmpeg\FFmpegExtractor.cpp" />
+    <ClCompile Include="..\extractor\ffmpeg\ffmpeg_source.cpp" />
+    <ClCompile Include="..\extractor\ffmpeg\ffmpeg_utils.cpp" />
+    <ClCompile Include="..\libstagefrighthw\NX_OMXPlugin.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\components\audio\audio_decoder_ffmpeg\NX_OMXAudioDecoderFFMpeg.h" />
+    <ClInclude Include="..\components\base\NX_OMXBaseComponent.h" />
+    <ClInclude Include="..\components\base\NX_OMXBasePort.h" />
+    <ClInclude Include="..\components\base\NX_OMXCommon.h" />
+    <ClInclude Include="..\components\video\coda960_video_decoder\NX_AVCUtil.h" />
+    <ClInclude Include="..\components\video\coda960_video_decoder\NX_DecoderUtil.h" />
+    <ClInclude Include="..\components\video\coda960_video_decoder\NX_OMXVideoDecoder.h" />
+    <ClInclude Include="..\components\video\coda960_video_encoder\NX_OMXVideoEncoder.h" />
+    <ClInclude Include="..\core\inc\NX_OMXComponentMgr.h" />
+    <ClInclude Include="..\core\inc\OMX_Audio.h" />
+    <ClInclude Include="..\core\inc\OMX_Component.h" />
+    <ClInclude Include="..\core\inc\OMX_ComponentExt.h" />
+    <ClInclude Include="..\core\inc\OMX_ContentPipe.h" />
+    <ClInclude Include="..\core\inc\OMX_Core.h" />
+    <ClInclude Include="..\core\inc\OMX_CoreExt.h" />
+    <ClInclude Include="..\core\inc\OMX_Image.h" />
+    <ClInclude Include="..\core\inc\OMX_Index.h" />
+    <ClInclude Include="..\core\inc\OMX_IndexExt.h" />
+    <ClInclude Include="..\core\inc\OMX_IVCommon.h" />
+    <ClInclude Include="..\core\inc\OMX_Other.h" />
+    <ClInclude Include="..\core\inc\OMX_Types.h" />
+    <ClInclude Include="..\core\inc\OMX_Video.h" />
+    <ClInclude Include="..\core\inc\OMX_VideoExt.h" />
+    <ClInclude Include="..\extractor\ffmpeg\FFmpegExtractor.h" />
+    <ClInclude Include="..\extractor\ffmpeg\ffmpeg_source.h" />
+    <ClInclude Include="..\extractor\ffmpeg\ffmpeg_utils.h" />
+    <ClInclude Include="..\include\nxvpu_coda960.h" />
+    <ClInclude Include="..\include\nxvpu_ffmpeg.h" />
+    <ClInclude Include="..\include\NX_MediaTypes.h" />
+    <ClInclude Include="..\include\NX_OMXDebugMsg.h" />
+    <ClInclude Include="..\include\NX_OMXMem.h" />
+    <ClInclude Include="..\include\NX_OMXQueue.h" />
+    <ClInclude Include="..\include\NX_OMXSemaphore.h" />
+    <ClInclude Include="..\include\NX_VpuTypes.h" />
+    <ClInclude Include="..\include\OMX_AndroidTypes.h" />
+    <ClInclude Include="..\libstagefrighthw\NX_OMXPlugin.h" />
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{BCBB4756-881A-495C-9A87-568FFB3D30C4}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <RootNamespace>OMX_MSVC_Project</RootNamespace>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <CharacterSet>Unicode</CharacterSet>
+    <PlatformToolset>v120</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+    <PlatformToolset>v120</PlatformToolset>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="KitKatDevel.props" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="KitKatDevel.props" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ExcludePath />
+    <ExecutablePath />
+    <IncludePath />
+    <ReferencePath />
+    <LibraryPath />
+    <SourcePath />
+    <LibraryWPath />
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ExcludePath />
+    <ExecutablePath />
+    <IncludePath />
+    <ReferencePath />
+    <LibraryPath />
+    <SourcePath />
+    <LibraryWPath />
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>../include;../../include;../core/inc;../../../../../linux/pyrope/library/include;../components/base/;../components/video/coda960_video_decoder;../components/video/coda960_video_encoder;../../../../../system/core/include;../../../../../hardware/libhardware/include;../extractor/ffmpeg;../codec/ffmpeg/include;../../../../../frameworks/av/include;../../../../../frameworks/av/media/libstagefright/include;../../../../../frameworks/native/include;../../../../../frameworks/native/include/media/hardware;../../../../../frameworks/native/include/media/openmax;$(ANDROID_INCS)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>../include;../../include;../core/inc;../../../../../linux/pyrope/library/include;../components/base/;../components/video/coda960_video_decoder;../components/video/coda960_video_encoder;../../../../../system/core/include;../../../../../hardware/libhardware/include;../extractor/ffmpeg;../codec/ffmpeg/include;../../../../../frameworks/av/include;../../../../../frameworks/av/media/libstagefright/include;../../../../../frameworks/native/include;../../../../../frameworks/native/include/media/hardware;../../../../../frameworks/native/include/media/openmax;$(ANDROID_INCS)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+    </Link>
+  </ItemDefinitionGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>
