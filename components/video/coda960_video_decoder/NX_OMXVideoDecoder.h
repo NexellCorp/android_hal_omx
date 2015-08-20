@@ -21,6 +21,7 @@ OMX_ERRORTYPE NX_VideoDecoder_ComponentInit (OMX_HANDLETYPE hComponent);
 #include <cutils/native_handle.h>
 #include <gralloc_priv.h>
 #include <media/hardware/MetadataBufferType.h>
+#include <sys/mman.h>
 
 #include <nx_fourcc.h>
 
@@ -29,6 +30,10 @@ OMX_ERRORTYPE NX_VideoDecoder_ComponentInit (OMX_HANDLETYPE hComponent);
 #else
 #include <nx_video_api.h>
 #endif
+
+#include <nx_deinterlace.h>
+#include <nx_graphictools.h>
+
 
 #define FFDEC_VID_VER_MAJOR			0
 #define FFDEC_VID_VER_MINOR			1
@@ -48,6 +53,8 @@ OMX_ERRORTYPE NX_VideoDecoder_ComponentInit (OMX_HANDLETYPE hComponent);
 
 #define	VID_OUTPORT_MIN_BUF_CNT_H264_UNDER720P	22			//	~720p
 #define	VID_OUTPORT_MIN_BUF_CNT_H264_1080P		12			//	1080p
+
+#define	VID_OUTPORT_MIN_BUF_CNT_INTERLACE		4
 
 #define	VID_OUTPORT_MIN_BUF_SIZE	(4*1024)			//	Video Memory Structure Size
 
@@ -129,6 +136,7 @@ struct tNX_VIDDEC_VIDEO_COMP_TYPE{
 	OMX_S32						outBufferUseFlag[NX_OMX_MAX_BUF];	//	Output Buffer Use Flag( Flag for Decoding )
 	OMX_S32						outBufferValidFlag[NX_OMX_MAX_BUF];	//	Valid Buffer Flag
 	OMX_S32						outUsableBuffers;					//	Max Allocated Buffers or Max Usable Buffers
+	OMX_S32						outUsableBufferIdx;
 	OMX_S32						curOutBuffers;						//	Currently Queued Buffer Counter
 	OMX_S32						minRequiredFrameBuffer;				//	Minimum H/W Required FrameBuffer( Sequence Output )
 	OMX_S32						outBufferable;						//	Display Buffers
@@ -190,6 +198,9 @@ struct tNX_VIDDEC_VIDEO_COMP_TYPE{
 	OMX_S32						instanceId;
 
 	OMX_BOOL					bNeedSequenceData;
+
+	OMX_BOOL					bInterlaced;		// 0 : Progressive, 1 : SW_Interlaced, 2 : 3D_Interlaced
+	void						*hDeinterlace;
 };
 
 
@@ -199,5 +210,7 @@ int PopVideoTimeStamp(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, OMX_TICKS *timestamp,
 int flushVideoCodec(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp);
 int openVideoCodec(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp);
 void closeVideoCodec(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp);
+void DeInterlaceFrame( NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_VID_DEC_OUT *pDecOut );
+int GetUsableBufferIdx( NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp );
 
 #endif	//	__NX_OMXVideoDecoder_h__

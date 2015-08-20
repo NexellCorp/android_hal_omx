@@ -7,6 +7,7 @@
 #include <NX_OMXBaseComponent.h>
 #include <OMX_AndroidTypes.h>
 #include <system/graphics.h>
+#include <cutils/properties.h>
 
 #include <stdbool.h>
 #include <ion/ion.h>
@@ -358,6 +359,14 @@ static OMX_ERRORTYPE NX_VidDec_GetParameter (OMX_HANDLETYPE hComp, OMX_INDEXTYPE
 		{
 			OMX_PARAM_PORTDEFINITIONTYPE *pPortDef = (OMX_PARAM_PORTDEFINITIONTYPE *)ComponentParamStruct;
 			OMX_ERRORTYPE error = OMX_ErrorNone;
+
+			/*if( pDecComp->bInterlaced )
+			{
+				TRACE("INTERLACE Buffer Get\n");
+				pDecComp->pOutputPort->stdPortDef.nBufferCountMin = VID_OUTPORT_MIN_BUF_CNT_INTERLACE;
+				pDecComp->pOutputPort->stdPortDef.nBufferCountActual = VID_OUTPORT_MIN_BUF_CNT_INTERLACE;
+			}*/
+
 			error = NX_BaseGetParameter( hComp, nParamIndex, ComponentParamStruct );
 			if( error != OMX_ErrorNone )
 			{
@@ -680,7 +689,14 @@ static OMX_ERRORTYPE NX_VidDec_SetParameter (OMX_HANDLETYPE hComp, OMX_INDEXTYPE
 				else
 				{
 					DbgMsg("CodecID(%ld) NX_AVC_DEC(%d)\n", pDecComp->videoCodecId, NX_AVC_DEC);
-					if( pDecComp->videoCodecId == NX_AVC_DEC )
+
+					/*if( pDecComp->bInterlaced )
+					{
+						TRACE("INTERLACE Buffer Set\n");
+						pDecComp->pOutputPort->stdPortDef.nBufferCountMin = VID_OUTPORT_MIN_BUF_CNT_INTERLACE;
+						pDecComp->pOutputPort->stdPortDef.nBufferCountActual = VID_OUTPORT_MIN_BUF_CNT_INTERLACE;
+					}
+					else*/ if( pDecComp->videoCodecId == NX_AVC_DEC )
 					{
 						int32_t MBs = ((pDecComp->width+15)>>4)*((pDecComp->height+15)>>4);
 						//	Under 720p
@@ -836,6 +852,7 @@ static OMX_ERRORTYPE NX_VidDec_UseBuffer (OMX_HANDLETYPE hComponent, OMX_BUFFERH
 	}
 	return OMX_ErrorInsufficientResources;
 }
+
 static OMX_ERRORTYPE NX_VidDec_AllocateBuffer (OMX_HANDLETYPE hComponent, OMX_BUFFERHEADERTYPE** pBuffer, OMX_U32 nPortIndex, OMX_PTR pAppPrivate, OMX_U32 nSizeBytes)
 {
 	OMX_COMPONENTTYPE *pStdComp = (OMX_COMPONENTTYPE *)hComponent;
@@ -896,6 +913,7 @@ static OMX_ERRORTYPE NX_VidDec_AllocateBuffer (OMX_HANDLETYPE hComponent, OMX_BU
 	*pBuffer = pPortBuf[0];
 	return OMX_ErrorInsufficientResources;
 }
+
 static OMX_ERRORTYPE NX_VidDec_FreeBuffer (OMX_HANDLETYPE hComponent, OMX_U32 nPortIndex, OMX_BUFFERHEADERTYPE* pBuffer)
 {
 	OMX_COMPONENTTYPE *pStdComp = (OMX_COMPONENTTYPE *)hComponent;
@@ -997,7 +1015,8 @@ static OMX_ERRORTYPE NX_VidDec_FillThisBuffer(OMX_HANDLETYPE hComp, OMX_BUFFERHE
 			{
 				if( pDecComp->outBufferValidFlag[i] )
 				{
-					NX_VidDecClrDspFlag( pDecComp->hVpuCodec, NULL, i );
+					if ( pDecComp->bInterlaced == 0 )
+						NX_VidDecClrDspFlag( pDecComp->hVpuCodec, NULL, i );
 					pDecComp->outBufferValidFlag[i] = 0;
 				}
 
@@ -1719,6 +1738,17 @@ void closeVideoCodec(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp)
 {
 	FUNC_IN;
 	if( NULL != pDecComp->hVpuCodec ){
+		if ( NULL != pDecComp->hDeinterlace )
+		{
+			if ( pDecComp->bInterlaced == 1 )
+				NX_DeInterlaceClose( pDecComp->hDeinterlace );
+			//else if ( pDecComp->bInterlaced == 2 )
+			//	NX_GTDeintClose( (NX_GT_DEINT_HANDLE)pDecComp->hDeinterlace );
+
+			pDecComp->bInterlaced = 0;
+			pDecComp->hDeinterlace = NULL;
+		}
+
 		NX_VidDecFlush( pDecComp->hVpuCodec );
 		NX_VidDecClose( pDecComp->hVpuCodec );
 		pDecComp->bInitialized = OMX_FALSE;
@@ -1773,10 +1803,63 @@ int InitializeCodaVpu(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, unsigned char *buf, i
 
 		iNumCurRegBuf = pDecComp->outUsableBuffers;
 
+		if ( pDecComp->bInterlaced == 0 )
+		{
+			if ( VID_ERR_NONE != (ret = NX_VidDecParseVideoCfg( pDecComp->hVpuCodec, &seqIn, &seqOut )) )
+			{
+				ALOGE("%s : NX_VidDecParseVideoCfg() is failed!!\n", __func__);
+				return ret;
+			}
+		}
+
 		if( pDecComp->bUseNativeBuffer == OMX_TRUE )
 		{
+			char value[PROPERTY_VALUE_MAX];
+			property_get("deinterlace.mode", value, "0");
+
 			DbgMsg("[%ld] Native Buffer Mode : iNumCurRegBuf=%ld, ExtraSize = %ld, MAX_DEC_FRAME_BUFFERS = %d\n",
 				pDecComp->instanceId, iNumCurRegBuf, pDecComp->codecSpecificDataSize, MAX_DEC_FRAME_BUFFERS );
+
+			if ( (seqOut.isInterlace) && (pDecComp->bInterlaced == 0) && (strcmp(value, "0")) )
+			{
+				/*if ( !strcmp(value, "10") )
+				{
+					pDecComp->hDeinterlace = (void *)NX_GTDeintOpen( seqOut.width, seqOut.height, MAX_GRAPHIC_BUF_SIZE );
+					pDecComp->bInterlaced = 2;
+				}
+				else*/
+				{
+					DEINTERLACE_MODE eDeInterlaceMode = 0;
+
+					if ( !strcmp(value, "1") )
+						eDeInterlaceMode = DEINTERLACE_BOB;
+					else if ( !strcmp(value, "2") )
+						eDeInterlaceMode = DEINTERLACE_BLEND;
+					else if ( !strcmp(value, "3") )
+						eDeInterlaceMode = DEINTERLACE_LINEAR;
+
+					pDecComp->hDeinterlace = NX_DeInterlaceOpen( eDeInterlaceMode );
+					pDecComp->bInterlaced = 1;
+				}
+
+				//if ( (pDecComp->pOutputPort->stdPortDef.nBufferCountMin != VID_OUTPORT_MIN_BUF_CNT_INTERLACE) || (pDecComp->pOutputPort->stdPortDef.nBufferCountActual != VID_OUTPORT_MIN_BUF_CNT_INTERLACE) )
+				{
+					// Port Reconfiguration
+					SendEvent( (NX_BASE_COMPNENT*)pDecComp, OMX_EventPortSettingsChanged, OMX_DirOutput, 0, NULL );
+
+					// Change Port Format
+					//pDecComp->pOutputPort->stdPortDef.nBufferCountMin = VID_OUTPORT_MIN_BUF_CNT_INTERLACE;
+					//pDecComp->pOutputPort->stdPortDef.nBufferCountActual = VID_OUTPORT_MIN_BUF_CNT_INTERLACE;
+
+					//InitVideoTimeStamp(pDecComp);
+					//closeVidreoCodec(pDecComp);
+					//openVideoCodec(pDecComp);
+
+					pDecComp->pOutputPort->stdPortDef.bEnabled = OMX_FALSE;
+					return 1;
+				}
+			}
+
 			//	Translate Gralloc Memory Buffer Type To Nexell Video Memory Type
 			for( i=0 ; i<iNumCurRegBuf ; i++ )
 			{
@@ -1795,19 +1878,29 @@ int InitializeCodaVpu(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, unsigned char *buf, i
 				{
 					ALOGE("%s: Invalid Buffer!!!\n", __func__);
 				}
-                vstride = ALIGN(handle->height, 16);
-                if( ion_fd<0 )
-                {
+				vstride = ALIGN(handle->height, 16);
+				if( ion_fd<0 )
+				{
 					ALOGE("%s: failed to ion_open", __func__);
 					return ion_fd;
-                }
-                ret = ion_get_phys(ion_fd, handle->share_fd, (long unsigned int *)&pDecComp->vidFrameBuf[i].luPhyAddr);
-                if (ret != 0) {
+				}
+				ret = ion_get_phys(ion_fd, handle->share_fd, (long unsigned int *)&pDecComp->vidFrameBuf[i].luPhyAddr);
+				if (ret != 0) {
 					ALOGE("%s: failed to ion_get_phys", __func__);
 					close( ion_fd );
 					return ret;
-                }
-                close(ion_fd);
+				}
+
+				pDecComp->vidFrameBuf[i].luVirAddr = (unsigned int)mmap(NULL, handle->size, PROT_READ|PROT_WRITE, MAP_SHARED, handle->share_fd, 0);
+				if ( pDecComp->vidFrameBuf[i].luVirAddr == 0xffffffff)
+				{
+					ALOGE("%s: failed to mmap", __func__);
+					close(ion_fd);
+					return -1;
+				}
+
+				close(ion_fd);
+
 				pDecComp->vidFrameBuf[i].memoryMap = 0;		//	Linear
 				pDecComp->vidFrameBuf[i].fourCC    = FOURCC_YV12;
 				pDecComp->vidFrameBuf[i].imgWidth  = pDecComp->width;
@@ -1816,25 +1909,36 @@ int InitializeCodaVpu(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, unsigned char *buf, i
 				pDecComp->vidFrameBuf[i].crPhyAddr = pDecComp->vidFrameBuf[i].cbPhyAddr + ALIGN(handle->stride>>1,16) * ALIGN(vstride>>1,16);
 				pDecComp->vidFrameBuf[i].luStride  = handle->stride;
 				pDecComp->vidFrameBuf[i].cbStride  = pDecComp->vidFrameBuf[i].crStride = handle->stride >> 1;
+				pDecComp->vidFrameBuf[i].cbVirAddr = pDecComp->vidFrameBuf[i].luVirAddr + handle->stride * vstride;
+				pDecComp->vidFrameBuf[i].crVirAddr = pDecComp->vidFrameBuf[i].cbVirAddr + ALIGN(handle->stride>>1,16) * ALIGN(vstride>>1,16);
+
 				TRACE("===== Physical Address(0x%08x,0x%08x,0x%08x), H Stride(%d), V Stride(%d)\n",
 						pDecComp->vidFrameBuf[i].luPhyAddr, pDecComp->vidFrameBuf[i].cbPhyAddr, pDecComp->vidFrameBuf[i].crPhyAddr, handle->stride, vstride );
 				pDecComp->hVidFrameBuf[i] = &pDecComp->vidFrameBuf[i];
 			}
-			seqIn.numBuffers = iNumCurRegBuf;
-			seqIn.pMemHandle = &pDecComp->hVidFrameBuf[0];
+
+			if ( pDecComp->bInterlaced == 0 )
+			{
+				seqIn.numBuffers = iNumCurRegBuf;
+				seqIn.pMemHandle = &pDecComp->hVidFrameBuf[0];
+			}
+			else
+			{
+				seqIn.numBuffers = 0;
+				seqIn.pMemHandle = NULL;
+				seqIn.addNumBuffers = 4;
+			}
 		}
 
-		if ( VID_ERR_NONE == (ret = NX_VidDecParseVideoCfg( pDecComp->hVpuCodec, &seqIn, &seqOut )) )
-		{
-			seqIn.width = seqOut.width;
-			seqIn.height = seqOut.height;
-			ret = NX_VidDecInit( pDecComp->hVpuCodec, &seqIn );
-		}
+		seqIn.width = seqOut.width;
+		seqIn.height = seqOut.height;
+		ret = NX_VidDecInit( pDecComp->hVpuCodec, &seqIn );
 
 		pDecComp->minRequiredFrameBuffer = seqOut.minBuffers;
 		pDecComp->outBufferable = seqOut.numBuffers - seqOut.minBuffers;
-		DbgMsg("[%ld] <<<<<<<<<< InitializeCodaVpu(Min=%ld, %dx%d) >>>>>>>>>>\n",
-			pDecComp->instanceId, pDecComp->minRequiredFrameBuffer, seqOut.width, seqOut.height );
+		pDecComp->outUsableBufferIdx = -1;
+		DbgMsg("[%ld] <<<<<<<<<< InitializeCodaVpu(Min=%ld, %dx%d) (ret = %d) >>>>>>>>>\n",
+			pDecComp->instanceId, pDecComp->minRequiredFrameBuffer, seqOut.width, seqOut.height, ret );
 	}
 	FUNC_OUT;
 	return ret;
@@ -1923,7 +2027,8 @@ int processEOS(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp)
 		ret = NX_VidDecDecodeFrame( pDecComp->hVpuCodec, &decIn, &decOut );
 		if( ret==VID_ERR_NONE && decOut.outImgIdx >= 0 && ( decOut.outImgIdx < NX_OMX_MAX_BUF ) )
 		{
-      		pOutBuf = pDecComp->pOutputBuffers[decOut.outImgIdx];
+			int32_t outIdx = ( pDecComp->bInterlaced == 0 ) ? ( decOut.outImgIdx ) : ( GetUsableBufferIdx(pDecComp) );
+      		pOutBuf = pDecComp->pOutputBuffers[outIdx];
 
 			if( pDecComp->bEnableThumbNailMode == OMX_TRUE )
 			{
@@ -1940,19 +2045,21 @@ int processEOS(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp)
 			{
 				//	Native Window Buffer Mode
 				//	Get Output Buffer Pointer From Output Buffer Pool
-				if( pDecComp->outBufferUseFlag[decOut.outImgIdx] == 0 )
+				if( pDecComp->outBufferUseFlag[outIdx] == 0 )
 				{
 					NX_VidDecClrDspFlag( pDecComp->hVpuCodec, NULL, decOut.outImgIdx );
-					ErrMsg("Unexpected Buffer Handling!!!! Goto Exit\n");
+					ErrMsg("[EOS]Unexpected Buffer Handling!!!! Goto Exit\n");
 					return 0;
 				}
 				else
 				{
-					pDecComp->outBufferUseFlag[decOut.outImgIdx] = 0;
+					pDecComp->outBufferUseFlag[outIdx] = 0;
 					pDecComp->curOutBuffers --;
 
 					pOutBuf->nFilledLen = sizeof(struct private_handle_t);
 				}
+
+				DeInterlaceFrame( pDecComp, &decOut );
 			}
 
 			if( 0 != PopVideoTimeStamp(pDecComp, &pOutBuf->nTimeStamp, &pOutBuf->nFlags )  )
@@ -2026,6 +2133,46 @@ int processEOSforFlush(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp)
 		}while(ret==VID_ERR_NONE && decOut.outImgIdx >= 0);
 	}
 	return 0;
+}
+
+void DeInterlaceFrame( NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_VID_DEC_OUT *pDecOut )
+{
+	if ( pDecComp->bInterlaced == 0 )	return;
+
+	if ( pDecComp->bInterlaced == 1 )
+	{
+		NX_DeInterlaceFrame( pDecComp->hDeinterlace, &pDecOut->outImg, pDecOut->topFieldFirst, pDecComp->hVidFrameBuf[pDecComp->outUsableBufferIdx] );
+	}
+	/*else if ( pDecComp->bInterlaced == 2 )
+	{
+		int ret = 0;
+		ret = NX_GTDeintDoDeinterlace( (NX_GT_DEINT_HANDLE)pDecComp->hDeinterlace, &pDecOut->outImg, pDecComp->hVidFrameBuf[pDecComp->outUsableBufferIdx] );
+		if (  ret < 0 )
+		{
+			TRACE("NX_GTDeintDoDeinterlace() Fail, Handle = %x, return = %d \n", pDecComp->hDeinterlace, ret );
+		}
+	}*/
+
+	NX_VidDecClrDspFlag( pDecComp->hVpuCodec, NULL, pDecOut->outImgIdx );
+}
+
+int GetUsableBufferIdx( NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp )
+{
+	int32_t i, OutIdx;
+
+	for ( i=1 ; i<NX_OMX_MAX_BUF ; i++ )
+	{
+		OutIdx = pDecComp->outUsableBufferIdx + i;
+		if ( OutIdx >= NX_OMX_MAX_BUF ) OutIdx -= NX_OMX_MAX_BUF;
+		if ( pDecComp->outBufferUseFlag[OutIdx] ) break;
+	}
+
+	if ( i == NX_OMX_MAX_BUF )
+		return -1;
+
+	pDecComp->outUsableBufferIdx = OutIdx;
+
+	return OutIdx;
 }
 
 //

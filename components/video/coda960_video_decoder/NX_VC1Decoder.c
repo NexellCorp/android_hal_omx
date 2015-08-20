@@ -265,9 +265,14 @@ int NX_DecodeVC1Frame(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_QUEUE *pInQueue, N
 				buf[16],buf[17],buf[18],buf[19],buf[20],buf[21],buf[22],buf[23] );
 		}
 		ret = InitializeCodaVpu(pDecComp, pDecComp->tmpInputBuffer, size );
-		if( 0 != ret )
+		if( 0 > ret )
 		{
 			ErrMsg("VPU initialized Failed!!!!\n");
+			goto Exit;
+		}
+		else if( ret > 0 )
+		{
+			ret = 0;
 			goto Exit;
 		}
 
@@ -319,6 +324,8 @@ int NX_DecodeVC1Frame(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_QUEUE *pInQueue, N
 		}
 		else
 		{
+			int32_t OutIdx = ( pDecComp->bInterlaced == 0 ) ? ( decOut.outImgIdx ) : ( GetUsableBufferIdx(pDecComp) );
+
 			if( pDecComp->isOutIdr == OMX_FALSE && decOut.picType[DECODED_FRAME] != PIC_TYPE_I &&
 				pDecComp->isOutIdr == OMX_FALSE && decOut.picType[DECODED_FRAME] != PIC_TYPE_VC1_BI )
 			{
@@ -332,9 +339,9 @@ int NX_DecodeVC1Frame(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_QUEUE *pInQueue, N
 
 			//	Native Window Buffer Mode
 			//	Get Output Buffer Pointer From Output Buffer Pool
-			pOutBuf = pDecComp->pOutputBuffers[decOut.outImgIdx];
+			pOutBuf = pDecComp->pOutputBuffers[OutIdx];
 
-			if( pDecComp->outBufferUseFlag[decOut.outImgIdx] == 0 )
+			if( pDecComp->outBufferUseFlag[OutIdx] == 0 )
 			{
 				OMX_TICKS timestamp;
 				OMX_U32 flag;
@@ -343,8 +350,8 @@ int NX_DecodeVC1Frame(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_QUEUE *pInQueue, N
 				ErrMsg("Unexpected Buffer Handling!!!! Goto Exit\n");
 				goto Exit;
 			}
-			pDecComp->outBufferValidFlag[decOut.outImgIdx] = 1;
-			pDecComp->outBufferUseFlag[decOut.outImgIdx] = 0;
+			pDecComp->outBufferValidFlag[OutIdx] = 1;
+			pDecComp->outBufferUseFlag[OutIdx] = 0;
 			pDecComp->curOutBuffers --;
 
 			pOutBuf->nFilledLen = sizeof(struct private_handle_t);
@@ -354,6 +361,8 @@ int NX_DecodeVC1Frame(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_QUEUE *pInQueue, N
 				pOutBuf->nFlags     = pInBuf->nFlags;
 			}
 			TRACE("nTimeStamp = %lld\n", pOutBuf->nTimeStamp/1000);
+
+			DeInterlaceFrame( pDecComp, &decOut );
 			pDecComp->outFrameCount++;
 			pDecComp->pCallbacks->FillBufferDone(pDecComp->hComp, pDecComp->hComp->pApplicationPrivate, pOutBuf);
 		}

@@ -59,7 +59,10 @@ LOCAL_SHARED_LIBRARIES := \
 	libhardware \
 	libnx_vpu \
 	libion \
-	libion-nexell
+	libion-nexell \
+	libcutils \
+	libnx_deinterlace
+#	libnxgraphictools    
 
 LOCAL_LDFLAGS += \
 	-L$(RATECONTROL_PATH)	\
