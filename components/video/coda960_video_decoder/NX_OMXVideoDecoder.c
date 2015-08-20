@@ -1891,8 +1891,8 @@ int InitializeCodaVpu(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, unsigned char *buf, i
 					return ret;
 				}
 
-				pDecComp->vidFrameBuf[i].luVirAddr = (unsigned int)mmap(NULL, handle->size, PROT_READ|PROT_WRITE, MAP_SHARED, handle->share_fd, 0);
-				if ( pDecComp->vidFrameBuf[i].luVirAddr == 0xffffffff)
+				pDecComp->vidFrameBuf[i].luVirAddr = mmap(NULL, handle->size, PROT_READ|PROT_WRITE, MAP_SHARED, handle->share_fd, 0);
+				if ( pDecComp->vidFrameBuf[i].luVirAddr == MAP_FAILED )
 				{
 					ALOGE("%s: failed to mmap", __func__);
 					close(ion_fd);
