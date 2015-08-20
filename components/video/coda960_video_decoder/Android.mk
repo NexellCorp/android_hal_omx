@@ -25,7 +25,6 @@ NX_LINUX_TOP := $(TOP)/linux/platform/$(TARGET_CPU_VARIANT2)
 NX_LINUX_INCLUDE := $(NX_LINUX_TOP)/library/include
 
 OMX_TOP := $(NX_HW_TOP)/omx
-RATECONTROL_PATH := $(NX_LINUX_TOP)/library/lib/ratecontrol
 
 LOCAL_SRC_FILES:= \
 	NX_AVCDecoder.c \
@@ -64,9 +63,8 @@ LOCAL_SHARED_LIBRARIES := \
 	libnx_deinterlace
 #	libnxgraphictools    
 
-LOCAL_LDFLAGS += \
-	-L$(RATECONTROL_PATH)	\
-	-lnxvidrc_android
+LOCAL_LDFLAGS_arm += -L$(NX_LINUX_TOP)/library/lib -lnxvidrc_android
+LOCAL_LDFLAGS_arm64 += -L$(NX_LINUX_TOP)/library/lib/arm64 -lnxvidrc_android
 
 LOCAL_CFLAGS += $(NX_OMX_CFLAGS)
 LOCAL_CFLAGS += -DNX_DYNAMIC_COMPONENTS
