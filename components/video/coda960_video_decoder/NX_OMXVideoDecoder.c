@@ -1891,14 +1891,6 @@ int InitializeCodaVpu(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, unsigned char *buf, i
 					return ret;
 				}
 
-				pDecComp->vidFrameBuf[i].luVirAddr = mmap(NULL, handle->size, PROT_READ|PROT_WRITE, MAP_SHARED, handle->share_fd, 0);
-				if ( pDecComp->vidFrameBuf[i].luVirAddr == MAP_FAILED )
-				{
-					ALOGE("%s: failed to mmap", __func__);
-					close(ion_fd);
-					return -1;
-				}
-
 				close(ion_fd);
 
 				pDecComp->vidFrameBuf[i].memoryMap = 0;		//	Linear
@@ -1909,8 +1901,6 @@ int InitializeCodaVpu(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, unsigned char *buf, i
 				pDecComp->vidFrameBuf[i].crPhyAddr = pDecComp->vidFrameBuf[i].cbPhyAddr + ALIGN(handle->stride>>1,16) * ALIGN(vstride>>1,16);
 				pDecComp->vidFrameBuf[i].luStride  = handle->stride;
 				pDecComp->vidFrameBuf[i].cbStride  = pDecComp->vidFrameBuf[i].crStride = handle->stride >> 1;
-				pDecComp->vidFrameBuf[i].cbVirAddr = pDecComp->vidFrameBuf[i].luVirAddr + handle->stride * vstride;
-				pDecComp->vidFrameBuf[i].crVirAddr = pDecComp->vidFrameBuf[i].cbVirAddr + ALIGN(handle->stride>>1,16) * ALIGN(vstride>>1,16);
 
 				TRACE("===== Physical Address(0x%08x,0x%08x,0x%08x), H Stride(%d), V Stride(%d)\n",
 						pDecComp->vidFrameBuf[i].luPhyAddr, pDecComp->vidFrameBuf[i].cbPhyAddr, pDecComp->vidFrameBuf[i].crPhyAddr, handle->stride, vstride );
@@ -2141,7 +2131,37 @@ void DeInterlaceFrame( NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_VID_DEC_OUT *pDec
 
 	if ( pDecComp->bInterlaced == 1 )
 	{
-		NX_DeInterlaceFrame( pDecComp->hDeinterlace, &pDecOut->outImg, pDecOut->topFieldFirst, pDecComp->hVidFrameBuf[pDecComp->outUsableBufferIdx] );
+		struct private_handle_t const *handle;
+		int ion_fd = ion_open();
+		int iIdx = pDecComp->outUsableBufferIdx;
+		int vstride;
+
+		handle = (struct private_handle_t const *)pDecComp->pOutputBuffers[iIdx]->pBuffer;
+		if( handle == NULL )
+		{
+			ALOGE("%s: Invalid Buffer!!!\n", __func__);
+		}
+
+		pDecComp->hVidFrameBuf[iIdx]->luVirAddr = (unsigned int)mmap(NULL, handle->size, PROT_READ|PROT_WRITE, MAP_SHARED, handle->share_fd, 0);
+		if ( pDecComp->hVidFrameBuf[iIdx]->luVirAddr == MAP_FAILED )
+		{
+			ALOGE("%s: failed to mmap", __func__);
+			close(ion_fd);
+			return -1;
+		}
+
+		vstride = ALIGN(handle->height, 16);
+		pDecComp->hVidFrameBuf[iIdx]->cbVirAddr = pDecComp->hVidFrameBuf[iIdx]->luVirAddr + handle->stride * vstride;
+		pDecComp->hVidFrameBuf[iIdx]->crVirAddr = pDecComp->hVidFrameBuf[iIdx]->cbVirAddr + ALIGN(handle->stride>>1,16) * ALIGN(vstride>>1,16);
+
+		NX_DeInterlaceFrame( pDecComp->hDeinterlace, &pDecOut->outImg, pDecOut->topFieldFirst, pDecComp->hVidFrameBuf[iIdx] );
+
+		if ( munmap( (void *)pDecComp->hVidFrameBuf[iIdx]->luVirAddr, handle->size ) < 0 )
+		{
+		   ALOGE("%s: could not unmap %s 0x%x %d", __func__, strerror(errno), pDecComp->hVidFrameBuf[iIdx]->luVirAddr, handle->size);
+		}
+
+		close(ion_fd);
 	}
 	/*else if ( pDecComp->bInterlaced == 2 )
 	{
