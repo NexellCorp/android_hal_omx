@@ -505,7 +505,7 @@ retry:
 			return 0;
 		}
 		mp3Header = pkt.data[0]<<24 | pkt.data[1]<<16 | pkt.data[2]<<8 | pkt.data[3];
-		if( ( ((mp3Header&0xffff0000) != 0xfffb0000) && ((mp3Header&0xffff0000) != 0xfff30000)) && mIsMp3Seek )
+		if( ( ((mp3Header&0xffff0000) != 0xfffb0000) && ((mp3Header&0xffff0000) != 0xfff30000) && ((mp3Header&0xffff0000) != 0xfffa0000)) && mIsMp3Seek )
 		{
 			av_free_packet(&pkt);
 			goto retry;
