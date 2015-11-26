@@ -807,7 +807,7 @@ static OMX_ERRORTYPE NX_VidEncStateTransition( NX_VIDENC_COMP_TYPE *pEncComp, OM
 					//
 				}
 
-				//	Open Decoder
+				//	Open Encoder
 				if( EncoderOpen( pEncComp ) != 0 )
 				{
 					DbgMsg("EncoderOpen() -- Error\n");
@@ -1306,7 +1306,7 @@ static OMX_S32 EncodeFrame(NX_VIDENC_COMP_TYPE *pEncComp, NX_QUEUE *pInQueue, NX
 		pEncComp->inputFormat.eColorFormat != OMX_COLOR_FormatAndroidOpaque &&
 		pEncComp->inputFormat.eColorFormat != OMX_COLOR_FormatYUV420Planar )
 	{
-		ErrMsg("Encoding Mode : NativeBuffer(%d), MetaDataInBuffers(%d), InputFormat(0x%08x) !!!\n", pEncComp->bUseNativeBuffer, pEncComp->bMetaDataInBuffers, pEncComp->inputFormat.eColorFormat);
+		ErrMsg("Encoding Mode Fail : NativeBuffer(%d), MetaDataInBuffers(%d), InputFormat(0x%08x) !!!\n", pEncComp->bUseNativeBuffer, pEncComp->bMetaDataInBuffers, pEncComp->inputFormat.eColorFormat);
 		return -1;
 	}
 	TRACE("Encoding Mode : NativeBuffer(%ld), MetaDataInBuffers(%ld), InputFormat(0x%08x) !!!\n", pEncComp->bUseNativeBuffer, pEncComp->bMetaDataInBuffers, pEncComp->inputFormat.eColorFormat);
@@ -1323,12 +1323,15 @@ static OMX_S32 EncodeFrame(NX_VIDENC_COMP_TYPE *pEncComp, NX_QUEUE *pInQueue, NX
 	//		ARGB Buffer
 	//
 #ifdef LOLLIPOP
-	if( pEncComp->bUseNativeBuffer == OMX_FALSE && pEncComp->inputFormat.eColorFormat == OMX_COLOR_FormatAndroidOpaque )
+	// temp patch for miracast. (by kshblue)
+	//if( pEncComp->bUseNativeBuffer == OMX_FALSE && pEncComp->inputFormat.eColorFormat == OMX_COLOR_FormatAndroidOpaque )
+	hPrivate = (struct private_handle_t const *)recodingBuffer[1];
+	if( hPrivate->stride >= (pEncComp->encWidth*4) )
 #else
 	if( pEncComp->inputFormat.eColorFormat == OMX_COLOR_FormatAndroidOpaque )
 #endif
 	{
-		hPrivate = (struct private_handle_t const *)recodingBuffer[1];
+		//hPrivate = (struct private_handle_t const *)recodingBuffer[1];
 		int ion_fd = ion_open();
 		if( ion_fd<0 )
 		{
@@ -1351,7 +1354,7 @@ static OMX_S32 EncodeFrame(NX_VIDENC_COMP_TYPE *pEncComp, NX_QUEUE *pInQueue, NX
 		{
 			//struct timeval start, end;
 			//gettimeofday( &start, NULL );
-			mAllocMod->lock(mAllocMod, (void*)hPrivate, GRALLOC_USAGE_SW_READ_OFTEN, 0, 0, hPrivate->stride, hPrivate->height, (void*)inData);	
+			mAllocMod->lock(mAllocMod, (void*)hPrivate, GRALLOC_USAGE_SW_READ_OFTEN, 0, 0, hPrivate->stride, hPrivate->height, (void*)inData);
 			cscARGBToNV21( (char*)inData, (char*)pEncComp->hCSCMem->luVirAddr, (char*)pEncComp->hCSCMem->cbVirAddr, pEncComp->encWidth, pEncComp->encHeight, 1);
 			mAllocMod->unlock(mAllocMod, (void*)hPrivate);
 			//gettimeofday( &end, NULL );
@@ -1379,7 +1382,7 @@ static OMX_S32 EncodeFrame(NX_VIDENC_COMP_TYPE *pEncComp, NX_QUEUE *pInQueue, NX
 	//
 	else if( pEncComp->bUseNativeBuffer == OMX_TRUE || pEncComp->bMetaDataInBuffers==OMX_TRUE )
 	{
-		hPrivate = (struct private_handle_t const *)recodingBuffer[1];
+		//hPrivate = (struct private_handle_t const *)recodingBuffer[1];
 		int ion_fd = ion_open();
 		if( ion_fd<0 )
 		{
@@ -1409,7 +1412,7 @@ static OMX_S32 EncodeFrame(NX_VIDENC_COMP_TYPE *pEncComp, NX_QUEUE *pInQueue, NX
 	//
 	else
 	{
-		hPrivate = (struct private_handle_t const *)recodingBuffer[1];
+		//hPrivate = (struct private_handle_t const *)recodingBuffer[1];
 		//	CSC
 		if( pEncComp->hCSCMem == NULL )
 		{
