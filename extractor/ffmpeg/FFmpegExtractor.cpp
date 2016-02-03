@@ -132,6 +132,11 @@ private:
 //	Implementation FFMpegSource class
 //
 //
+#ifdef LOG_TAG
+#undef LOG_TAG
+#endif
+#define LOG_TAG "FFMpegSource"
+
 class FFMpegSource : public MediaSource {
 	FFMpegSource(const sp<FFmpegExtractor> &extractor, sp<MetaData> meta, bool isAVC, AVStream *stream, PacketQueue *queue);
 	virtual status_t start(MetaData *params);
@@ -141,6 +146,7 @@ class FFMpegSource : public MediaSource {
 
 protected:
 	virtual ~FFMpegSource();
+	bool Mp3CheckHeader(uint32_t h);
 
 private:
 	friend struct FFmpegExtractor;
@@ -155,7 +161,6 @@ private:
 	bool mIsAVC;
 	bool mIsHEVC;
 	bool mIsMp3;
-	bool mIsMp3Seek;
 	size_t mNALLengthSize;
 	bool mNal2AnnexB;
 	bool mNeedStartKey;
@@ -177,7 +182,6 @@ FFMpegSource::FFMpegSource(const sp<FFmpegExtractor> &extractor, sp<MetaData> me
 	, mIsAVC(isAVC)
 	, mIsHEVC(false)
 	, mIsMp3(false)
-	, mIsMp3Seek(false)
 	, mNeedStartKey(true)
 	, mStream(stream)
 	, mQueue(queue)
@@ -308,6 +312,23 @@ sp<MetaData> FFMpegSource::getFormat() {
 	return mMeta;
 }
 
+bool FFMpegSource::Mp3CheckHeader(uint32_t h){
+
+	uint32_t v;
+    if ((h&0xffe00000)^0xffe00000)
+        return false;
+    if (((h>>19)&3) == 1)	//version
+        return false;
+    if (((h>>17)&3) == 0)	//layer
+        return false;
+    if (((h>>10)&3) == 3)	//frequency
+        return false;
+    if (((v=(h>>12)&0x0f) == 0x00) || v == 0x0f)	//bit rate
+        return false;
+
+	return true;
+}
+
 status_t FFMpegSource::read(MediaBuffer **buffer, const ReadOptions *options)
 {
 	*buffer = NULL;
@@ -335,7 +356,6 @@ status_t FFMpegSource::read(MediaBuffer **buffer, const ReadOptions *options)
 		if (mExtractor->stream_seek(seekTimeUs, mMediaType) == SEEK){
 			seeking = true;
 		}
-		mIsMp3Seek = true;
 	}
 
 	if( mNeedStartKey )
@@ -499,20 +519,19 @@ retry:
 		mediaBuffer->meta_data()->clear();
 		mediaBuffer->set_range(0, pkt.size);
 		uint32_t mp3Header;
+		bool	 bFindHeader;
 		if( pkt.size < 4 )
 		{
 			av_free_packet(&pkt);
 			return 0;
 		}
+		
 		mp3Header = pkt.data[0]<<24 | pkt.data[1]<<16 | pkt.data[2]<<8 | pkt.data[3];
-		if( ( ((mp3Header&0xffff0000) != 0xfffb0000) && ((mp3Header&0xffff0000) != 0xfff30000) && ((mp3Header&0xffff0000) != 0xfffa0000)) && mIsMp3Seek )
+		bFindHeader = Mp3CheckHeader(mp3Header);
+		if(!bFindHeader)
 		{
 			av_free_packet(&pkt);
 			goto retry;
-		}
-		else
-		{
-			mIsMp3Seek = false;
 		}
 		// ALOGD("====================MP3 Payload : Header(0x%08x) size: %d, flags: %d(key=%d), pts: %lld, dts: %lld, timeUs[-startTime]: %llu us (%.2f secs)",
 		// 	mp3Header, pkt.size, pkt.flags, key, pkt.pts, pkt.dts, timeUs, timeUs/1E6);
@@ -561,6 +580,11 @@ retry:
 //
 //		Implementation FFMPEG Extractor
 //
+
+#ifdef LOG_TAG
+#undef LOG_TAG
+#endif
+#define LOG_TAG "NX_FFmpegExtractor"
 
 FFmpegExtractor::FFmpegExtractor(const sp<DataSource> &source)
 	: mDataSource(source)
@@ -1199,9 +1223,11 @@ int FFmpegExtractor::stream_component_open(int stream_index)
 			printTime(duration);
 			ALOGV("video startTime: %lld", mVideoStream->start_time);
 			meta->setInt64(kKeyDuration, duration);
+			meta->setInt64(kKeyThumbnailTime, duration/4);
 		} else {
 			// default when no stream duration
 			meta->setInt64(kKeyDuration, mFormatCtx->duration);
+			meta->setInt64(kKeyThumbnailTime, mFormatCtx->duration/4);
 		}
 
 		ALOGV("create a video track");
