@@ -11,22 +11,22 @@
 	*_p++ = (unsigned char)((_var)>>0);  \
 	*_p++ = (unsigned char)((_var)>>8);  \
 	*_p++ = (unsigned char)((_var)>>16); \
-	*_p++ = (unsigned char)((_var)>>24); 
+	*_p++ = (unsigned char)((_var)>>24);
 
 #define PUT_BE32(_p, _var) \
 	*_p++ = (unsigned char)((_var)>>24);  \
 	*_p++ = (unsigned char)((_var)>>16);  \
 	*_p++ = (unsigned char)((_var)>>8); \
-	*_p++ = (unsigned char)((_var)>>0); 
+	*_p++ = (unsigned char)((_var)>>0);
 
 #define PUT_LE16(_p, _var) \
 	*_p++ = (unsigned char)((_var)>>0);  \
-	*_p++ = (unsigned char)((_var)>>8);  
+	*_p++ = (unsigned char)((_var)>>8);
 
 
 #define PUT_BE16(_p, _var) \
 	*_p++ = (unsigned char)((_var)>>8);  \
-	*_p++ = (unsigned char)((_var)>>0);  
+	*_p++ = (unsigned char)((_var)>>0);
 
 
 //	Profiles & Levels

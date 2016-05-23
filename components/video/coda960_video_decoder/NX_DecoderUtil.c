@@ -32,7 +32,7 @@ const OMX_VIDEO_AVCLEVELTYPE gstDecSupportedAVCLevels[MAX_DEC_SUPPORTED_AVC_LEVE
 };
 
 //	Max DPB(Deocded Picture Buffer Size Table)
-const double gstAVCMaxDeocdedPictureBuffer[MAX_DEC_SUPPORTED_AVC_LEVELS] = 
+const double gstAVCMaxDeocdedPictureBuffer[MAX_DEC_SUPPORTED_AVC_LEVELS] =
 {
 	148.5  , 148.5  , 337.5  , 891.0  , 891.0  , 891.0  , 1782.0 ,
 	3037.5 , 3037.5 , 6750.0 , 7680.0 , 12288.0, 12288.0, 13056.0
@@ -59,13 +59,13 @@ int AVCFindMinimumBufferSize(OMX_VIDEO_AVCLEVELTYPE level, int width, int height
 //
 //  Mpeg4 Supported Profile & Level
 //
-const OMX_VIDEO_MPEG4PROFILETYPE gstDecSupportedMPEG4Profiles[MAX_DEC_SUPPORTED_MPEG4_PROFILES] = 
+const OMX_VIDEO_MPEG4PROFILETYPE gstDecSupportedMPEG4Profiles[MAX_DEC_SUPPORTED_MPEG4_PROFILES] =
 {
     OMX_VIDEO_MPEG4ProfileSimple,
     OMX_VIDEO_MPEG4ProfileAdvancedSimple,
 };
 
-const OMX_VIDEO_MPEG4LEVELTYPE gstDecSupportedMPEG4Levels[MAX_DEC_SUPPORTED_MPEG4_LEVELS] = 
+const OMX_VIDEO_MPEG4LEVELTYPE gstDecSupportedMPEG4Levels[MAX_DEC_SUPPORTED_MPEG4_LEVELS] =
 {
     OMX_VIDEO_MPEG4Level0 ,
     OMX_VIDEO_MPEG4Level0b,
@@ -81,14 +81,14 @@ const OMX_VIDEO_MPEG4LEVELTYPE gstDecSupportedMPEG4Levels[MAX_DEC_SUPPORTED_MPEG
 //
 //  Mpeg2 Supported Profile & Level
 //
-const OMX_VIDEO_MPEG2PROFILETYPE gstDecSupportedMPEG2Profiles[MAX_DEC_SUPPORTED_MPEG2_PROFILES] = 
+const OMX_VIDEO_MPEG2PROFILETYPE gstDecSupportedMPEG2Profiles[MAX_DEC_SUPPORTED_MPEG2_PROFILES] =
 {
     OMX_VIDEO_MPEG2ProfileSimple,
     OMX_VIDEO_MPEG2ProfileMain,
     OMX_VIDEO_MPEG2ProfileHigh,
 };
 
-const OMX_VIDEO_MPEG2LEVELTYPE gstDecSupportedMPEG2Levels[MAX_DEC_SUPPORTED_MPEG2_LEVELS] = 
+const OMX_VIDEO_MPEG2LEVELTYPE gstDecSupportedMPEG2Levels[MAX_DEC_SUPPORTED_MPEG2_LEVELS] =
 {
     OMX_VIDEO_MPEG2LevelLL,
     OMX_VIDEO_MPEG2LevelML,
@@ -97,7 +97,7 @@ const OMX_VIDEO_MPEG2LEVELTYPE gstDecSupportedMPEG2Levels[MAX_DEC_SUPPORTED_MPEG
 
 // added by kshblue (14.07.04)
 //
-//  H263 Supported Profile & Level 
+//  H263 Supported Profile & Level
 //
 const OMX_VIDEO_H263PROFILETYPE gstDecSupportedH263Profiles[MAX_DEC_SUPPORTED_H263_PROFILES] =
 {
@@ -151,13 +151,13 @@ int CopySurfaceToBufferYV12( uint8_t *srcY, uint8_t *srcU, uint8_t *srcV, uint8_
         for( i=0 ; i<height ; i++ )
         {
             memcpy( dst, srcU, width );
-            srcY += strideY;
+            srcU += strideUV;
             dst += width;
         }
         for( i=0 ; i<height ; i++ )
         {
             memcpy( dst, srcV, width );
-            srcY += strideY;
+            srcV += strideUV;
             dst += width;
         }
     }

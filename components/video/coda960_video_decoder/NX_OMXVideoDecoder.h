@@ -122,7 +122,7 @@ typedef struct tNX_VIDDEC_VIDEO_COMP_TYPE NX_VIDDEC_VIDEO_COMP_TYPE;
 
 //	Define Transform Template Component Type
 struct tNX_VIDDEC_VIDEO_COMP_TYPE{
-	NX_BASECOMPONENTTYPE		//	Nexell Base Component Type	
+	NX_BASECOMPONENTTYPE		//	Nexell Base Component Type
 	/*					Buffer Thread							*/
 	pthread_t					hBufThread;
 	pthread_mutex_t				hBufMutex;

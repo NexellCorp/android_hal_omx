@@ -18,7 +18,7 @@
 
 /* bit input */
 /* buffer, buffer_end and size_in_bits must be present and used by every reader */
-typedef struct GetBitContext 
+typedef struct GetBitContext
 {
 	const uint8_t *buffer, *buffer_end;
 	int index;
@@ -27,9 +27,9 @@ typedef struct GetBitContext
 
 /* used to avoid missaligned exceptions on some archs (alpha, ...) */
 #ifdef __GNUC__
-	static inline uint32_t unaligned32(const void *v) 
+	static inline uint32_t unaligned32(const void *v)
 	{
-		struct Unaligned 
+		struct Unaligned
 		{
 			uint32_t i;
 		} __attribute__((packed));
@@ -37,15 +37,15 @@ typedef struct GetBitContext
 		return ((const struct Unaligned *) v)->i;
 	}
 #elif defined(__DECC)
-	static inline uint32_t unaligned32(const void *v) 
+	static inline uint32_t unaligned32(const void *v)
 	{
 		return *(const __unaligned uint32_t *) v;
 	}
 #else
-	static inline uint32_t unaligned32(const void *v) 
+	static inline uint32_t unaligned32(const void *v)
 	{
 		return *(const uint32_t *) v;
-	}					
+	}
 #endif
 
 static inline int unaligned32_be(const void *v)
@@ -184,10 +184,10 @@ static inline void init_get_bits(GetBitContext *s, const uint8_t *buffer, int bi
 
 /**
 	* parses a vlc code, faster then get_vlc()
-	* @param bits is the number of bits which will be read at once, must be 
+	* @param bits is the number of bits which will be read at once, must be
 	*             identical to nb_bits in init_vlc()
 	* @param max_depth is the number of times bits bits must be readed to completly
-	*                  read the longest vlc code 
+	*                  read the longest vlc code
 	*                  = (max_vlc_length + bits - 1) / bits
 	*/
 
@@ -200,12 +200,12 @@ static inline int av_log2(unsigned int v)
 	int n;
 
 	n = 0;
-	if (v & 0xffff0000) 
+	if (v & 0xffff0000)
 	{
 		v >>= 16;
 		n += 16;
 	}
-	if (v & 0xff00) 
+	if (v & 0xff00)
 	{
 		v >>= 8;
 		n += 8;
@@ -225,23 +225,23 @@ extern const uint8_t ff_interleaved_golomb_vlc_len[256];
 extern const uint8_t ff_interleaved_ue_golomb_vlc_code[256];
 extern const  int8_t ff_interleaved_se_golomb_vlc_code[256];
 
- 
+
  /**
  * read unsigned exp golomb code.
  */
 static inline int get_ue_golomb(GetBitContext *gb){
     unsigned int buf;
     int log;
-    
+
     OPEN_READER(re, gb);
     UPDATE_CACHE(re, gb);
     buf=GET_CACHE(re, gb);
-    
+
     if(buf >= (1<<27)){
         buf >>= 32 - 9;
         LAST_SKIP_BITS(re, gb, ff_golomb_vlc_len[buf]);
         CLOSE_READER(re, gb);
-    
+
         return ff_ue_golomb_vlc_code[buf];
     }else{
         log= 2*av_log2(buf) - 31;
@@ -249,7 +249,7 @@ static inline int get_ue_golomb(GetBitContext *gb){
         buf--;
         LAST_SKIP_BITS(re, gb, 32 - log);
         CLOSE_READER(re, gb);
-    
+
         return buf;
     }
 }
@@ -259,7 +259,7 @@ static inline int get_ue_golomb(GetBitContext *gb){
  */
 static inline int get_te0_golomb(GetBitContext *gb, int range){
     assert(range >= 1);
-    
+
     if(range==1)      return 0;
     else if(range==2) return get_bits1(gb)^1;
     else              return get_ue_golomb(gb);
@@ -270,7 +270,7 @@ static inline int get_te0_golomb(GetBitContext *gb, int range){
  */
 static inline int get_te_golomb(GetBitContext *gb, int range){
     assert(range >= 1);
-    
+
     if(range==2) return get_bits1(gb)^1;
     else         return get_ue_golomb(gb);
 }
@@ -282,24 +282,24 @@ static inline int get_te_golomb(GetBitContext *gb, int range){
 static inline int get_se_golomb(GetBitContext *gb){
     unsigned int buf;
     int log;
-    
+
     OPEN_READER(re, gb);
     UPDATE_CACHE(re, gb);
     buf=GET_CACHE(re, gb);
-    
+
     if(buf >= (1<<27)){
         buf >>= 32 - 9;
         LAST_SKIP_BITS(re, gb, ff_golomb_vlc_len[buf]);
         CLOSE_READER(re, gb);
-    
+
         return ff_se_golomb_vlc_code[buf];
     }else{
         log= 2*av_log2(buf) - 31;
         buf>>= log;
-        
+
         LAST_SKIP_BITS(re, gb, 32 - log);
         CLOSE_READER(re, gb);
-    
+
         if(buf&1) buf= -((int)(buf>>1));
         else      buf=  (buf>>1);
 
@@ -313,7 +313,7 @@ static inline int get_se_golomb(GetBitContext *gb){
 static inline int get_ur_golomb(GetBitContext *gb, int k, int limit, int esc_len){
     unsigned int buf;
     int log;
-    
+
     OPEN_READER(re, gb);
     UPDATE_CACHE(re, gb);
     buf=GET_CACHE(re, gb);
@@ -325,13 +325,13 @@ static inline int get_ur_golomb(GetBitContext *gb, int k, int limit, int esc_len
         buf += (30-log)<<k;
         LAST_SKIP_BITS(re, gb, 32 + k - log);
         CLOSE_READER(re, gb);
-    
+
         return buf;
     }else{
         buf >>= 32 - limit - esc_len;
         LAST_SKIP_BITS(re, gb, esc_len + limit);
         CLOSE_READER(re, gb);
-    
+
         return buf + limit - 1;
     }
 }
@@ -342,19 +342,19 @@ static inline int get_ur_golomb(GetBitContext *gb, int k, int limit, int esc_len
 static inline int get_ur_golomb_jpegls(GetBitContext *gb, int k, int limit, int esc_len){
     unsigned int buf;
     int log;
-    
+
     OPEN_READER(re, gb);
     UPDATE_CACHE(re, gb);
     buf=GET_CACHE(re, gb);
 
     log= av_log2(buf);
-    
+
     if(log > 31-11){
         buf >>= log - k;
         buf += (30-log)<<k;
         LAST_SKIP_BITS(re, gb, 32 + k - log);
         CLOSE_READER(re, gb);
-    
+
         return buf;
     }else{
         int i;
@@ -378,7 +378,7 @@ static inline int get_ur_golomb_jpegls(GetBitContext *gb, int k, int limit, int 
             buf = SHOW_UBITS(re, gb, esc_len);
             LAST_SKIP_BITS(re, gb, esc_len);
             CLOSE_READER(re, gb);
-    
+
             return buf + 1;
         }else
             return -1;
