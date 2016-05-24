@@ -735,11 +735,19 @@ static OMX_ERRORTYPE NX_VidDec_SetParameter (OMX_HANDLETYPE hComp, OMX_INDEXTYPE
 		case OMX_IndexEnableAndroidNativeBuffers:
 		{
 			struct EnableAndroidNativeBuffersParams *pEnNativeBuf = (struct EnableAndroidNativeBuffersParams *)ComponentParamStruct;
-			if( pEnNativeBuf->nPortIndex != 1 )
+			if ( pEnNativeBuf->nPortIndex != 1 )
 				return OMX_ErrorBadPortIndex;
 			pDecComp->bUseNativeBuffer = pEnNativeBuf->enable;
-			pDecComp->bEnableThumbNailMode = OMX_FALSE;
 			DbgMsg("Native buffer flag is %s!!", (pDecComp->bUseNativeBuffer==OMX_TRUE)?"Enabled":"Disabled");
+
+			if ( pDecComp->bUseNativeBuffer == OMX_FALSE )
+			{
+				pDecComp->bEnableThumbNailMode = OMX_TRUE;
+			}
+			else
+			{
+				pDecComp->bEnableThumbNailMode = OMX_FALSE;
+			}
 			break;
 		}
 		//case OMX_IndexStoreMetaDataInBuffers:
@@ -1929,6 +1937,27 @@ int InitializeCodaVpu(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, unsigned char *buf, i
 		pDecComp->outUsableBufferIdx = -1;
 		DbgMsg("[%ld] <<<<<<<<<< InitializeCodaVpu(Min=%ld, %dx%d) (ret = %d) >>>>>>>>>\n",
 			pDecComp->instanceId, pDecComp->minRequiredFrameBuffer, seqOut.width, seqOut.height, ret );
+
+
+		//	Update Output Port Information
+		{
+			OMX_PARAM_PORTDEFINITIONTYPE *pOutPort = (OMX_PARAM_PORTDEFINITIONTYPE *)pDecComp->pPort[VPUDEC_VID_OUTPORT_INDEX];
+			OMX_VIDEO_PORTDEFINITIONTYPE *pVideoFormat = &pOutPort->format.video;
+			pVideoFormat->eColorFormat = HAL_PIXEL_FORMAT_YV12;
+			pVideoFormat->cMIMEType = "video/raw";
+			pVideoFormat->nFrameWidth = seqOut.width;
+			pVideoFormat->nFrameHeight = seqOut.height;
+			if( OMX_TRUE == pDecComp->bUseNativeBuffer )
+			{
+				pVideoFormat->nStride = ALIGN(seqOut.width, 32);
+				pVideoFormat->nSliceHeight = ALIGN(seqOut.height, 16);
+			}
+			else
+			{
+				pVideoFormat->nStride = seqOut.width;
+				pVideoFormat->nSliceHeight = seqOut.height;
+			}
+		}
 	}
 	FUNC_OUT;
 	return ret;
