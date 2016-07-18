@@ -289,6 +289,8 @@ OMX_ERRORTYPE NX_VidEncComponentInit (OMX_HANDLETYPE hComponent)
 
 	pEncComp->encIntraRefreshMbs= 0;
 
+	pEncComp->threadNum = VIDENC_CSC_THREAD;
+
 	SetDefaultMp4EncParam( &pEncComp->omxMp4EncParam, 1 );
 	SetDefaultAvcEncParam( &pEncComp->omxAVCEncParam, 1 );
 	SetDefaultH263EncParam( &pEncComp->omxH263EncParam, 1 );
@@ -1355,7 +1357,7 @@ static OMX_S32 EncodeFrame(NX_VIDENC_COMP_TYPE *pEncComp, NX_QUEUE *pInQueue, NX
 			//struct timeval start, end;
 			//gettimeofday( &start, NULL );
 			mAllocMod->lock(mAllocMod, (void*)hPrivate, GRALLOC_USAGE_SW_READ_OFTEN, 0, 0, hPrivate->stride, hPrivate->height, (void*)inData);
-			cscARGBToNV21( (char*)inData, (char*)pEncComp->hCSCMem->luVirAddr, (char*)pEncComp->hCSCMem->cbVirAddr, pEncComp->encWidth, pEncComp->encHeight, 1);
+			cscARGBToNV21( (char*)inData, (char*)pEncComp->hCSCMem->luVirAddr, (char*)pEncComp->hCSCMem->cbVirAddr, pEncComp->encWidth, pEncComp->encHeight, 1, pEncComp->threadNum);
 			mAllocMod->unlock(mAllocMod, (void*)hPrivate);
 			//gettimeofday( &end, NULL );
 			//uint32_t value = (end.tv_sec - start.tv_sec)*1000 + (end.tv_usec - start.tv_usec)/1000;

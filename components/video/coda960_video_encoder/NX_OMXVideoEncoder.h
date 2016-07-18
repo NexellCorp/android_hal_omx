@@ -39,6 +39,13 @@ OMX_ERRORTYPE NX_VidDecComponentInit (OMX_HANDLETYPE hComponent);
 #define	VIDENC_DEF_FRAMERATE		(30)
 #define	VIDENC_DEF_BITRATE			(3*1024*1024)
 
+#ifdef ARCH_S5P6818
+#define VIDENC_CSC_THREAD			1
+#else
+#define VIDENC_CSC_THREAD			1
+#endif
+
+
 typedef struct _NX_VINPUT_INFO NX_VINPUT_INFO;
 struct _NX_VINPUT_INFO{
 	uint32_t key;
@@ -92,6 +99,8 @@ typedef struct tNX_VIDENC_COMP_TYPE{
 
 	OMX_BYTE					pPictureBuf;
 
+	//	multi-thread for CSC
+	int32_t						threadNum;
 }NX_VIDENC_COMP_TYPE;
 
 #endif	//	__NX_OMXVideoDecoderFFMpeg_h__
