@@ -684,7 +684,7 @@ static OMX_ERRORTYPE NX_VidDec_SetParameter (OMX_HANDLETYPE hComp, OMX_INDEXTYPE
 					pDecComp->pOutputPort->stdPortDef.nBufferCountActual = VID_OUTPORT_MIN_BUF_CNT_THUMB;
 					pDecComp->pOutputPort->stdPortDef.nBufferCountMin    = VID_OUTPORT_MIN_BUF_CNT_THUMB;
 #endif
-					pDecComp->pOutputPort->stdPortDef.nBufferSize = pDecComp->width*pDecComp->height*3/2;
+					//pDecComp->pOutputPort->stdPortDef.nBufferSize = pDecComp->width*pDecComp->height*3/2;
 				}
 				else
 				{
@@ -717,8 +717,10 @@ static OMX_ERRORTYPE NX_VidDec_SetParameter (OMX_HANDLETYPE hComp, OMX_INDEXTYPE
 						pDecComp->pOutputPort->stdPortDef.nBufferCountMin    = VID_OUTPORT_MIN_BUF_CNT;
 						pDecComp->pOutputPort->stdPortDef.nBufferCountActual = VID_OUTPORT_MIN_BUF_CNT;
 					}
-					pDecComp->pOutputPort->stdPortDef.nBufferSize = VID_OUTPORT_MIN_BUF_SIZE;
+					//pDecComp->pOutputPort->stdPortDef.nBufferSize = VID_OUTPORT_MIN_BUF_SIZE;
 				}
+
+				pDecComp->pOutputPort->stdPortDef.nBufferSize = pDecComp->width*pDecComp->height*3/2;
 
 				if( (((pDecComp->width+15)>>4) * ((pDecComp->height+15)>>4) ) > ((1920>>4)*(1088>>4)) )
 				{
