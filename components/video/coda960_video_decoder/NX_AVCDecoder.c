@@ -237,12 +237,18 @@ int NX_DecodeAvcFrame(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_QUEUE *pInQueue, N
 		pDecComp->bNeedKey = OMX_FALSE;
 		pDecComp->bInitialized = OMX_TRUE;
 
+		// Because of CTS
+#if 0
 		decIn.strmBuf = inData;
 		//decIn.strmSize = 0;
 		decIn.strmSize = initBufSize;
 		decIn.timeStamp = pInBuf->nTimeStamp;
 		decIn.eos = 0;
 		ret = NX_VidDecDecodeFrame( pDecComp->hVpuCodec, &decIn, &decOut );
+#else
+		ret = 0;
+		decOut.outImgIdx = -1;
+#endif
 	}
 	else
 	{
@@ -326,7 +332,7 @@ int NX_DecodeAvcFrame(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_QUEUE *pInQueue, N
 				pOutBuf->nTimeStamp = pInBuf->nTimeStamp;
 				pOutBuf->nFlags     = pInBuf->nFlags;
 			}
-			TRACE("pOutBuf->nTimeStamp = %lld\n", pOutBuf->nTimeStamp/1000);
+			TRACE("Native Mode : pOutBuf->nTimeStamp = %lld\n", pOutBuf->nTimeStamp/1000);
 
 			DeInterlaceFrame( pDecComp, &decOut );
 			pDecComp->outFrameCount++;

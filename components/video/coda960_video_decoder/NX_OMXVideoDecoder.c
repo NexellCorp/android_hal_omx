@@ -1782,7 +1782,7 @@ int flushVideoCodec(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp)
 		{
 			case NX_AVC_DEC:
 			case NX_MP2_DEC:
-			break;
+				//break;
 			default:
 				NX_VidDecFlush( pDecComp->hVpuCodec );
 			break;

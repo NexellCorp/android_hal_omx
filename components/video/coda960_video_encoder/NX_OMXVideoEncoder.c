@@ -711,6 +711,30 @@ static OMX_ERRORTYPE NX_VidEncSetParameter (OMX_HANDLETYPE hComp, OMX_INDEXTYPE 
 			pEncComp->bMetaDataInBuffers = pParam->bStoreMetaData;
 			break;
 		}
+		// For CTS
+		case OMX_IndexParamPortDefinition:
+		{
+			OMX_PARAM_PORTDEFINITIONTYPE *pInPortDef = (OMX_PARAM_PORTDEFINITIONTYPE *)ComponentParamStruct;
+			OMX_PARAM_PORTDEFINITIONTYPE *pPortDef = (OMX_PARAM_PORTDEFINITIONTYPE *)(pEncComp->pPort[pInPortDef->nPortIndex]);
+			OMX_ERRORTYPE error = OMX_ErrorNone;
+
+			error = NX_BaseSetParameter( hComp, nParamIndex, ComponentParamStruct );
+			if( error != OMX_ErrorNone )
+			{
+				DbgMsg("Error NX_BaseSetParameter() failed !!! for OMX_IndexParamPortDefinition\n");
+				return error;
+			}
+
+			if (pPortDef->format.video.nStride == 0)
+				pPortDef->format.video.nStride = pPortDef->format.video.nFrameWidth;
+
+			if (pPortDef->format.video.nSliceHeight == 0)
+				pPortDef->format.video.nSliceHeight = pPortDef->format.video.nFrameHeight;
+
+			if (pPortDef->format.video.eColorFormat == 0)
+				pPortDef->format.video.eColorFormat = OMX_COLOR_FormatYUV420Planar;
+			break;
+		}
 		default :
 			return NX_BaseSetParameter( hComp, nParamIndex, ComponentParamStruct );
 	}
@@ -1300,121 +1324,121 @@ static OMX_S32 EncodeFrame(NX_VIDENC_COMP_TYPE *pEncComp, NX_QUEUE *pInQueue, NX
 		return 0;
 	}
 
-	//	Get YUV Image Plane
-	recodingBuffer = (OMX_S32*)pInBuf->pBuffer;
-
-	if( recodingBuffer[0]!=kMetadataBufferTypeCameraSource &&
-		recodingBuffer[0]!=kMetadataBufferTypeGrallocSource &&
-		pEncComp->inputFormat.eColorFormat != OMX_COLOR_FormatAndroidOpaque &&
-		pEncComp->inputFormat.eColorFormat != OMX_COLOR_FormatYUV420Planar )
+	if (pInBuf->nFilledLen < pEncComp->encWidth*pEncComp->encHeight*3/2)
 	{
-		ErrMsg("Encoding Mode Fail : NativeBuffer(%d), MetaDataInBuffers(%d), InputFormat(0x%08x) !!!\n", pEncComp->bUseNativeBuffer, pEncComp->bMetaDataInBuffers, pEncComp->inputFormat.eColorFormat);
-		return -1;
-	}
-	TRACE("Encoding Mode : NativeBuffer(%ld), MetaDataInBuffers(%ld), InputFormat(0x%08x) !!!\n", pEncComp->bUseNativeBuffer, pEncComp->bMetaDataInBuffers, pEncComp->inputFormat.eColorFormat);
+		//	Get YUV Image Plane
+		recodingBuffer = (OMX_S32*)pInBuf->pBuffer;
 
-	if (hw_get_module(GRALLOC_HARDWARE_MODULE_ID, &module) == 0)
-	{
-		mAllocMod = (gralloc_module_t const *)module;
-	}
-
-	//
-	//	Data Format :
-	//		pInBuf->pBuffer[0~3] : Buffer Type
-	//		pInBuf->pBuffer[4~7] : private_hand_t *
-	//		ARGB Buffer
-	//
-#ifdef LOLLIPOP
-	// temp patch for miracast. (by kshblue)
-	//if( pEncComp->bUseNativeBuffer == OMX_FALSE && pEncComp->inputFormat.eColorFormat == OMX_COLOR_FormatAndroidOpaque )
-	hPrivate = (struct private_handle_t const *)recodingBuffer[1];
-	if( hPrivate->stride >= (pEncComp->encWidth*4) )
-#else
-	if( pEncComp->inputFormat.eColorFormat == OMX_COLOR_FormatAndroidOpaque )
-#endif
-	{
-		//hPrivate = (struct private_handle_t const *)recodingBuffer[1];
-		int ion_fd = ion_open();
-		if( ion_fd<0 )
+		if( recodingBuffer[0]!=kMetadataBufferTypeCameraSource &&
+			recodingBuffer[0]!=kMetadataBufferTypeGrallocSource &&
+			pEncComp->inputFormat.eColorFormat != OMX_COLOR_FormatAndroidOpaque &&
+			pEncComp->inputFormat.eColorFormat != OMX_COLOR_FormatYUV420Planar )
 		{
-			ALOGE("%s: failed to ion_open", __func__);
-			return ion_fd;
-		}
-		uint8_t *inData = mmap(NULL, hPrivate->size, PROT_READ|PROT_WRITE, MAP_SHARED, hPrivate->share_fd, 0);
-		if( inData == MAP_FAILED )
-		{
-			ALOGE("%s: failed to mmap", __func__);
-			close(ion_fd);
+			ErrMsg("Encoding Mode Fail : NativeBuffer(%d), MetaDataInBuffers(%d), InputFormat(0x%08x) !!!\n", pEncComp->bUseNativeBuffer, pEncComp->bMetaDataInBuffers, pEncComp->inputFormat.eColorFormat);
 			return -1;
 		}
-		//	CSC
-		if( pEncComp->hCSCMem == NULL )
+		TRACE("Encoding Mode : NativeBuffer(%ld), MetaDataInBuffers(%ld), InputFormat(0x%08x) !!!\n", pEncComp->bUseNativeBuffer, pEncComp->bMetaDataInBuffers, pEncComp->inputFormat.eColorFormat);
+
+		if (hw_get_module(GRALLOC_HARDWARE_MODULE_ID, &module) == 0)
 		{
-			pEncComp->hCSCMem = NX_VideoAllocateMemory( 4096, pEncComp->encWidth, pEncComp->encHeight, NX_MEM_MAP_LINEAR, FOURCC_NV12 );
-		}
-		if( pEncComp->hCSCMem )
-		{
-			//struct timeval start, end;
-			//gettimeofday( &start, NULL );
-			mAllocMod->lock(mAllocMod, (void*)hPrivate, GRALLOC_USAGE_SW_READ_OFTEN, 0, 0, hPrivate->stride, hPrivate->height, (void*)inData);
-			cscARGBToNV21( (char*)inData, (char*)pEncComp->hCSCMem->luVirAddr, (char*)pEncComp->hCSCMem->cbVirAddr, pEncComp->encWidth, pEncComp->encHeight, 1, pEncComp->threadNum);
-			mAllocMod->unlock(mAllocMod, (void*)hPrivate);
-			//gettimeofday( &end, NULL );
-			//uint32_t value = (end.tv_sec - start.tv_sec)*1000 + (end.tv_usec - start.tv_usec)/1000;
-			//DbgMsg("~~~~TimeStamp = %d msec\n", value);
-			memset( &inputMem, 0, sizeof(inputMem) );
-			inputMem.memoryMap = 0;		//	Linear
-			inputMem.fourCC    = FOURCC_NV12;
-			inputMem.imgWidth  = hPrivate->width;
-			inputMem.imgHeight = hPrivate->height;
-			inputMem.luPhyAddr = pEncComp->hCSCMem->luPhyAddr;
-			inputMem.cbPhyAddr = pEncComp->hCSCMem->cbPhyAddr;
-			inputMem.crPhyAddr = pEncComp->hCSCMem->crPhyAddr;
-			inputMem.luStride  =
-			inputMem.cbStride  =
-			inputMem.crStride  = hPrivate->width;
-		}
-		munmap( inData, hPrivate->size );
-		close(ion_fd);
-	}
-	//
-	//	Data Format :
-	//		pInBuf->pBuffer[0~3] : Buffer Type
-	//		pInBuf->pBuffer[4~7] : private_hand_t *
-	//
-	else if( pEncComp->bUseNativeBuffer == OMX_TRUE || pEncComp->bMetaDataInBuffers==OMX_TRUE )
-	{
-		//hPrivate = (struct private_handle_t const *)recodingBuffer[1];
-		int ion_fd = ion_open();
-		if( ion_fd<0 )
-		{
-			ALOGE("%s: failed to ion_open", __func__);
-			return ion_fd;
-		}
-		int ret = ion_get_phys(ion_fd, hPrivate->share_fd, (long unsigned int *)&inputMem.luPhyAddr);
-		if (ret != 0) {
-			ALOGE("%s: failed to ion_get_phys", __func__);
-			close( ion_fd );
-			return ret;
+			mAllocMod = (gralloc_module_t const *)module;
 		}
 
-		int vStride = ALIGN(hPrivate->height, 16);
-		inputMem.memoryMap = 0;		//	Linear
-		inputMem.fourCC    = FOURCC_MVS0;
-		inputMem.imgWidth  = pEncComp->encWidth;
-		inputMem.imgHeight = pEncComp->encHeight;
-		inputMem.cbPhyAddr = inputMem.luPhyAddr + hPrivate->stride * vStride;
-		inputMem.crPhyAddr = inputMem.cbPhyAddr + ALIGN(hPrivate->stride >> 1, 16) * ALIGN(vStride >> 1, 16);
-		inputMem.luStride  = hPrivate->stride;
-		inputMem.cbStride  = inputMem.crStride = hPrivate->stride >> 1;
-        close(ion_fd);
+		//
+		//	Data Format :
+		//		pInBuf->pBuffer[0~3] : Buffer Type
+		//		pInBuf->pBuffer[4~7] : private_hand_t *
+		//		ARGB Buffer
+		//
+#ifdef LOLLIPOP
+		// temp patch for miracast. (by kshblue)
+		//if( pEncComp->bUseNativeBuffer == OMX_FALSE && pEncComp->inputFormat.eColorFormat == OMX_COLOR_FormatAndroidOpaque )
+		hPrivate = (struct private_handle_t const *)recodingBuffer[1];
+		if( hPrivate->stride >= (pEncComp->encWidth*4) )
+#else
+		if( pEncComp->inputFormat.eColorFormat == OMX_COLOR_FormatAndroidOpaque )
+#endif
+		{
+			int ion_fd = ion_open();
+			if( ion_fd<0 )
+			{
+				ALOGE("%s: failed to ion_open", __func__);
+				return ion_fd;
+			}
+			uint8_t *inData = mmap(NULL, hPrivate->size, PROT_READ|PROT_WRITE, MAP_SHARED, hPrivate->share_fd, 0);
+			if( inData == MAP_FAILED )
+			{
+				ALOGE("%s: failed to mmap", __func__);
+				close(ion_fd);
+				return -1;
+			}
+			//	CSC
+			if( pEncComp->hCSCMem == NULL )
+			{
+				pEncComp->hCSCMem = NX_VideoAllocateMemory( 4096, pEncComp->encWidth, pEncComp->encHeight, NX_MEM_MAP_LINEAR, FOURCC_NV12 );
+			}
+			if( pEncComp->hCSCMem )
+			{
+				//struct timeval start, end;
+				//gettimeofday( &start, NULL );
+				mAllocMod->lock(mAllocMod, (void*)hPrivate, GRALLOC_USAGE_SW_READ_OFTEN, 0, 0, hPrivate->stride, hPrivate->height, (void*)inData);
+				cscARGBToNV21( (char*)inData, (char*)pEncComp->hCSCMem->luVirAddr, (char*)pEncComp->hCSCMem->cbVirAddr, pEncComp->encWidth, pEncComp->encHeight, 1, pEncComp->threadNum);
+				mAllocMod->unlock(mAllocMod, (void*)hPrivate);
+				//gettimeofday( &end, NULL );
+				//uint32_t value = (end.tv_sec - start.tv_sec)*1000 + (end.tv_usec - start.tv_usec)/1000;
+				//DbgMsg("~~~~TimeStamp = %d msec\n", value);
+				memset( &inputMem, 0, sizeof(inputMem) );
+				inputMem.memoryMap = 0;		//	Linear
+				inputMem.fourCC    = FOURCC_NV12;
+				inputMem.imgWidth  = hPrivate->width;
+				inputMem.imgHeight = hPrivate->height;
+				inputMem.luPhyAddr = pEncComp->hCSCMem->luPhyAddr;
+				inputMem.cbPhyAddr = pEncComp->hCSCMem->cbPhyAddr;
+				inputMem.crPhyAddr = pEncComp->hCSCMem->crPhyAddr;
+				inputMem.luStride  =
+				inputMem.cbStride  =
+				inputMem.crStride  = hPrivate->width;
+			}
+			munmap( inData, hPrivate->size );
+			close(ion_fd);
+		}
+		//
+		//	Data Format :
+		//		pInBuf->pBuffer[0~3] : Buffer Type
+		//		pInBuf->pBuffer[4~7] : private_hand_t *
+		//
+		else if( pEncComp->bUseNativeBuffer == OMX_TRUE || pEncComp->bMetaDataInBuffers==OMX_TRUE )
+		{
+			int ion_fd = ion_open();
+			if( ion_fd<0 )
+			{
+				ALOGE("%s: failed to ion_open", __func__);
+				return ion_fd;
+			}
+			int ret = ion_get_phys(ion_fd, hPrivate->share_fd, (long unsigned int *)&inputMem.luPhyAddr);
+			if (ret != 0) {
+				ALOGE("%s: failed to ion_get_phys", __func__);
+				close( ion_fd );
+				return ret;
+			}
+
+			int vStride = ALIGN(hPrivate->height, 16);
+			inputMem.memoryMap = 0;		//	Linear
+			inputMem.fourCC    = FOURCC_MVS0;
+			inputMem.imgWidth  = pEncComp->encWidth;
+			inputMem.imgHeight = pEncComp->encHeight;
+			inputMem.cbPhyAddr = inputMem.luPhyAddr + hPrivate->stride * vStride;
+			inputMem.crPhyAddr = inputMem.cbPhyAddr + ALIGN(hPrivate->stride >> 1, 16) * ALIGN(vStride >> 1, 16);
+			inputMem.luStride  = hPrivate->stride;
+			inputMem.cbStride  = inputMem.crStride = hPrivate->stride >> 1;
+	        close(ion_fd);
+		}
 	}
 	//
 	//	YV12 Data Format
 	//
 	else
 	{
-		//hPrivate = (struct private_handle_t const *)recodingBuffer[1];
 		//	CSC
 		if( pEncComp->hCSCMem == NULL )
 		{
@@ -1425,13 +1449,11 @@ static OMX_S32 EncodeFrame(NX_VIDENC_COMP_TYPE *pEncComp, NX_QUEUE *pInQueue, NX
 			char *srcY = (char*)pInBuf->pBuffer;
 			char *srcU = srcY + pEncComp->encWidth * pEncComp->encHeight;
 			char *srcV = srcU + pEncComp->encWidth * pEncComp->encHeight / 4;
-			mAllocMod->lock(mAllocMod, (void*)hPrivate, GRALLOC_USAGE_SW_READ_OFTEN, 0, 0, pEncComp->encWidth, pEncComp->encHeight * 3 / 2, (void*)srcY);
 			cscYV12ToYV12(  srcY, srcU, srcV,
 							(char*)pEncComp->hCSCMem->luVirAddr, (char*)pEncComp->hCSCMem->cbVirAddr, (char*)pEncComp->hCSCMem->crVirAddr,
 							pEncComp->encWidth, pEncComp->hCSCMem->luStride, pEncComp->hCSCMem->cbStride,
 							pEncComp->encWidth, pEncComp->encHeight );
 			memcpy(&inputMem, pEncComp->hCSCMem, sizeof(inputMem) );
-			mAllocMod->unlock(mAllocMod, (void*)hPrivate);
 		}
 	}
 
