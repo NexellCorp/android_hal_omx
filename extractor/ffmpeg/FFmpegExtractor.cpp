@@ -89,6 +89,7 @@ static formatmap FILE_FORMATS[] = {
 	{"mpegts",				MEDIA_MIMETYPE_CONTAINER_MPEG2TS	, 0.09f	},
 	{"mpeg",				MEDIA_MIMETYPE_CONTAINER_MPEG2PS	, 0.24f	},
 	{"mov",					MEDIA_MIMETYPE_CONTAINER_MPEG4		, 0.88f	},
+	{"ape",					MEDIA_MIMETYPE_AUDIO_APE			, 0.88f	},
 };
 
 
@@ -561,6 +562,11 @@ retry:
 		av_get_media_type_string(mMediaType), pkt.size, pkt.flags, key, pkt.pts, pkt.dts, timeUs, timeUs/1E6);
 #endif
 
+	if(timeUs < 0)
+	{
+		timeUs = 0;
+	}
+
 	mediaBuffer->meta_data()->setInt64(kKeyTime, timeUs);
 	mediaBuffer->meta_data()->setInt32(kKeyIsSyncFrame, key);
 
@@ -682,6 +688,14 @@ sp<MetaData> FFmpegExtractor::getMetaData() {
 	for (int i = 0; i < NELEM(FILE_FORMATS); ++i) {
 		int len = strlen(FILE_FORMATS[i].format);
 		if (!strncasecmp(mFormatCtx->iformat->name, FILE_FORMATS[i].format, len)) {
+			if(MEDIA_MIMETYPE_CONTAINER_ASF == FILE_FORMATS[i].container)
+			{
+				if( (-1 == mVideoStreamIdx) && (mAudioStreamIdx != -1) )
+				{
+					meta->setCString(kKeyMIMEType, MEDIA_MIMETYPE_AUDIO_WMA);
+					break;
+				}
+			}
 			meta->setCString(kKeyMIMEType, FILE_FORMATS[i].container);
 			break;
 		}
@@ -2090,6 +2104,7 @@ static int get_num_supported_audio_tracks(AVFormatContext *avfctx)
 			case AV_CODEC_ID_COOK:
 			case AV_CODEC_ID_DTS:
 			case AV_CODEC_ID_FLAC:
+			case AV_CODEC_ID_APE:
 			case AV_CODEC_ID_VORBIS:
 			case AV_CODEC_ID_PCM_S16LE:
 				count ++;
@@ -2219,12 +2234,18 @@ const char *BetterSniffFFMPEG(const char * uri, bool &useFFMPEG, bool dumpInfo)
 	if (err < 0) {
 		goto ErrorExit;
 	}
-
+#if 0
 	if( get_num_supported_video_tracks(ic) < 1 )
 	{
 		ALOGI("BetterSniffFFMPEG() : Have no video stream for playable.!!");
 		goto ErrorExit;
 	}
+#else  //Audio File Support (2016.09.07)
+	if( get_num_supported_video_tracks(ic) < 1 )
+	{
+		ALOGI("BetterSniffFFMPEG() : Have no video stream for playable.!!");
+	}
+#endif	
 
 	if( dumpInfo )
 		av_dump_format(ic, 0, uri, 0);
@@ -2323,11 +2344,18 @@ const char *Better2SniffFFMPEG(const sp<DataSource> &source, bool &useFFMPEG, bo
 
 	ALOGI("FFmpegExtrator::Better2SniffFFMPEG url: %s, format_name: %s, format_long_name: %s", url, ic->iformat->name, ic->iformat->long_name);
 
+#if 0
 	if( get_num_supported_video_tracks(ic) < 1 )
 	{
 		ALOGI("Better2SniffFFMPEG() :Have no video stream for playable.!!");
 		goto ErrorExit;
 	}
+#else  //Audio File Support (2016.09.07)
+	if( get_num_supported_video_tracks(ic) < 1 )
+	{
+		ALOGI("Better2SniffFFMPEG() :Have no video stream for playable.!!");
+	}
+#endif	
 
 	for( i=0 ; i < ic->nb_streams ;  i++ )
 	{
@@ -2342,6 +2370,7 @@ const char *Better2SniffFFMPEG(const sp<DataSource> &source, bool &useFFMPEG, bo
 			codec_id == AV_CODEC_ID_WMAPRO      ||
 			codec_id == AV_CODEC_ID_WMALOSSLESS ||
 			codec_id == AV_CODEC_ID_COOK        ||
+			codec_id == AV_CODEC_ID_APE         ||
 			codec_id == AV_CODEC_ID_AC3 )
 		{
 			useFFMPEG= true;

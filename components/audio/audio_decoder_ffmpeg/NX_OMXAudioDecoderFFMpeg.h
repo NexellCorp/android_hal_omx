@@ -51,21 +51,29 @@ extern "C"{
 //#define FFDEC_AUD_OUTPORT_MIN_BUF_SIZE	(16*1536*2*2)
 #define	FFDEC_AUD_OUTPORT_MIN_BUF_SIZE	(1024*1024)
 
+#define FFDEC_AUD_INPORT_APE_MIN_BUF_SIZE	(128*1024*8)
+#define FFDEC_AUD_OUTPORT_APE_MIN_BUF_CNT	4
+#define	FFDEC_AUD_OUTPORT_APE_MIN_BUF_SIZE	(1024*1024*2)
+
 #ifdef LOLLIPOP
 #define OMX_IndexParamAudioAc3	(OMX_IndexVendorStartUnused + 0xE0000 + 0x00)
 #define	OMX_IndexParamAudioDTS	(OMX_IndexVendorStartUnused + 0xE0000 + 0x01)
 #define	OMX_IndexParamAudioFLAC	(OMX_IndexVendorStartUnused + 0xE0000 + 0x02)
+#define	OMX_IndexParamAudioAPE	(OMX_IndexVendorStartUnused + 0xE0000 + 0x03)
 #define OMX_AUDIO_CodingAC3		(OMX_AUDIO_CodingVendorStartUnused + 0xE0000 + 0x00)
 #define OMX_AUDIO_CodingDTS		(OMX_AUDIO_CodingVendorStartUnused + 0xE0000 + 0x01)
 #define OMX_AUDIO_CodingFLAC	(OMX_AUDIO_CodingVendorStartUnused + 0xE0000 + 0x02)
+#define OMX_AUDIO_CodingAPE		(OMX_AUDIO_CodingVendorStartUnused + 0xE0000 + 0x03)
 #else
 #define OMX_IndexParamAudioAc3	(OMX_IndexVendorStartUnused + 0x00)
 #define	OMX_IndexParamAudioDTS	(OMX_IndexVendorStartUnused + 0x01)
 #define	OMX_IndexParamAudioFLAC	(OMX_IndexVendorStartUnused + 0x02)
+#define	OMX_IndexParamAudioAPE	(OMX_IndexVendorStartUnused + 0x03)
 
 #define OMX_AUDIO_CodingAC3		(OMX_AUDIO_CodingVendorStartUnused + 0x00)
 #define OMX_AUDIO_CodingDTS		(OMX_AUDIO_CodingVendorStartUnused + 0x01)
 #define OMX_AUDIO_CodingFLAC	(OMX_AUDIO_CodingVendorStartUnused + 0x02)
+#define OMX_AUDIO_CodingAPE		(OMX_AUDIO_CodingVendorStartUnused + 0x03)
 #endif
 
 /** AC3 params */
@@ -96,6 +104,15 @@ typedef struct OMX_AUDIO_PARAM_FLACTYPE {
     OMX_U32 nSampleRate;
 } OMX_AUDIO_PARAM_FLACTYPE;
 
+typedef struct OMX_AUDIO_PARAM_APETYPE {
+    OMX_U32 nSize;
+    OMX_VERSIONTYPE nVersion;
+    OMX_U32 nPortIndex;
+    OMX_U32 nChannels;
+    OMX_U32 nBitRate;
+    OMX_U32 nSampleRate;
+} OMX_AUDIO_PARAM_APETYPE;
+
 
 //	Define Transform Template Component Type
 typedef struct NX_FFDEC_AUDIO_COMP_TYPE{
@@ -112,6 +129,7 @@ typedef struct NX_FFDEC_AUDIO_COMP_TYPE{
 		OMX_AUDIO_PARAM_RATYPE raType;
 		OMX_AUDIO_PARAM_WMATYPE wmaType;
 		OMX_AUDIO_PARAM_MP3TYPE mp3Type;
+		OMX_AUDIO_PARAM_APETYPE apeType;
 	}inPortType;
 
 	/*				Audio Format				*/
