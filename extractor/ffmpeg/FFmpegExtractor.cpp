@@ -871,6 +871,68 @@ static sp<ABuffer> MakeMPEGVideoESDS(const sp<ABuffer> &csd) {
 	return esds;
 }
 
+static int bytesForSize(size_t size) {
+    // use at most 28 bits (4 times 7)
+    CHECK(size <= 0xfffffff);
+
+    if (size > 0x1fffff) {
+        return 4;
+    } else if (size > 0x3fff) {
+        return 3;
+    } else if (size > 0x7f) {
+        return 2;
+    }
+    return 1;
+}
+
+static void storeSize(uint8_t *data, size_t &idx, size_t size) {
+    int numBytes = bytesForSize(size);
+    idx += numBytes;
+
+    data += idx;
+    size_t next = 0;
+    while (numBytes--) {
+        *--data = (size & 0x7f) | next;
+        size >>= 7;
+        next = 0x80;
+    }
+}
+
+static void addESDSFromCodecPrivate(
+        const sp<MetaData> &meta,
+        bool isAudio, const void *priv, size_t privSize) {
+
+    int privSizeBytesRequired = bytesForSize(privSize);
+    int esdsSize2 = 14 + privSizeBytesRequired + privSize;
+    int esdsSize2BytesRequired = bytesForSize(esdsSize2);
+    int esdsSize1 = 4 + esdsSize2BytesRequired + esdsSize2;
+    int esdsSize1BytesRequired = bytesForSize(esdsSize1);
+    size_t esdsSize = 1 + esdsSize1BytesRequired + esdsSize1;
+    uint8_t *esds = new uint8_t[esdsSize];
+
+    size_t idx = 0;
+    esds[idx++] = 0x03;
+    storeSize(esds, idx, esdsSize1);
+    esds[idx++] = 0x00; // ES_ID
+    esds[idx++] = 0x00; // ES_ID
+    esds[idx++] = 0x00; // streamDependenceFlag, URL_Flag, OCRstreamFlag
+    esds[idx++] = 0x04;
+    storeSize(esds, idx, esdsSize2);
+    esds[idx++] = isAudio ? 0x40   // Audio ISO/IEC 14496-3
+                          : 0x20;  // Visual ISO/IEC 14496-2
+    for (int i = 0; i < 12; i++) {
+        esds[idx++] = 0x00;
+    }
+    esds[idx++] = 0x05;
+    storeSize(esds, idx, privSize);
+    memcpy(esds + idx, priv, privSize);
+
+    meta->setData(kKeyESDS, 0, esds, esdsSize);
+
+    delete[] esds;
+    esds = NULL;
+}
+
 // Returns the sample rate based on the sampling frequency index
 static uint32_t get_sample_rate(const uint8_t sf_index)
 {
@@ -1307,6 +1369,7 @@ int FFmpegExtractor::stream_component_open(int stream_index)
 			uint32_t sr;
 			const uint8_t *header;
 			uint8_t profile, sf_index, channel;
+			meta = new MetaData;
 
 			header = avctx->extradata;
 			CHECK(header != NULL);
@@ -1326,7 +1389,8 @@ int FFmpegExtractor::stream_component_open(int stream_index)
 			channel = (header[1] >> 3) & 0xf;
 			ALOGD("profile: %d, sf_index: %d, channel: %d", profile, sf_index, channel);
 
-			meta = MakeAACCodecSpecificData(profile - 1, sf_index, channel);
+			//meta = MakeAACCodecSpecificData(profile - 1, sf_index, channel);
+			addESDSFromCodecPrivate(meta, true, avctx->extradata, avctx->extradata_size );
 			meta->setCString(kKeyMIMEType, MEDIA_MIMETYPE_AUDIO_AAC);
 			meta->setInt32(kKeyBlockAlign, avctx->block_align);
 			meta->setInt32(kKeyAACProfile, profile);
