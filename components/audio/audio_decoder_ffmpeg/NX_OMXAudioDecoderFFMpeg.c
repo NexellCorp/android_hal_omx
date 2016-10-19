@@ -54,7 +54,8 @@ static int decodeAudioFrame(NX_FFDEC_AUDIO_COMP_TYPE *pDecComp, NX_QUEUE *pInQue
 
 
 static OMX_S32		gstNumInstance = 0;
-static OMX_S32		gstMaxInstance = 1;
+//static OMX_S32		gstMaxInstance = 1;
+static OMX_S32		gstMaxInstance = 5;
 
 
 
@@ -311,6 +312,16 @@ static OMX_ERRORTYPE NX_FFAudDec_GetParameter (OMX_HANDLETYPE hComp, OMX_INDEXTY
 			NxMemcpy( ComponentParamStruct, &pDecComp->inPortType, sizeof(OMX_AUDIO_PARAM_FLACTYPE) );
 			break;
 		}
+		case OMX_IndexParamAudioAPE:
+		{
+			OMX_AUDIO_PARAM_APETYPE *pApeMode = (OMX_AUDIO_PARAM_APETYPE *)ComponentParamStruct;
+			if( pApeMode->nPortIndex != FFDEC_AUD_INPORT_INDEX){
+				NX_ErrMsg("%s Bad port index.(%d)\n", __FUNCTION__, nParamIndex);
+				return OMX_ErrorBadPortIndex;
+			}
+			NxMemcpy( ComponentParamStruct, &pDecComp->inPortType, sizeof(OMX_AUDIO_PARAM_APETYPE) );
+			break;
+		}
 		case OMX_IndexParamAudioRa:
 		{
 			OMX_AUDIO_PARAM_RATYPE *pRaMode = (OMX_AUDIO_PARAM_RATYPE*)ComponentParamStruct;
@@ -370,6 +381,19 @@ static OMX_ERRORTYPE NX_FFAudDec_SetParameter (OMX_HANDLETYPE hComp, OMX_INDEXTY
 				pDecComp->compRole = strdup((OMX_STRING)pInRole->cRole);
                 pDecComp->inCodingType = OMX_AUDIO_CodingAC3;
 				pDecComp->pInputPort->stdPortDef.format.audio.eEncoding = OMX_AUDIO_CodingAC3;
+			}
+			else if( !strcmp( (OMX_STRING)pInRole->cRole, "audio_decoder.ape" ) )
+			{
+				if( pDecComp->compRole )
+					free(pDecComp->compRole);
+				pDecComp->compRole = strdup((OMX_STRING)pInRole->cRole);
+				pDecComp->inCodingType = OMX_AUDIO_CodingAPE;
+				pDecComp->pInputPort->stdPortDef.format.audio.eEncoding = OMX_AUDIO_CodingAPE;
+				pDecComp->pInputPort->stdPortDef.nBufferSize = FFDEC_AUD_INPORT_APE_MIN_BUF_SIZE;
+
+				pDecComp->pOutputPort->stdPortDef.nBufferCountActual = FFDEC_AUD_OUTPORT_APE_MIN_BUF_CNT;
+				pDecComp->pOutputPort->stdPortDef.nBufferCountMin    = FFDEC_AUD_OUTPORT_APE_MIN_BUF_CNT;
+				pDecComp->pOutputPort->stdPortDef.nBufferSize        = FFDEC_AUD_OUTPORT_APE_MIN_BUF_SIZE;
 			}
 			else if( !strcmp( (OMX_STRING)pInRole->cRole, "audio_decoder.dts" ) )
 			{
@@ -478,6 +502,22 @@ static OMX_ERRORTYPE NX_FFAudDec_SetParameter (OMX_HANDLETYPE hComp, OMX_INDEXTY
 			pDecComp->outPortType.nChannels = FFMIN(2, pDtsType->nChannels);
 			pDecComp->outPortType.nSamplingRate = pDtsType->nSampleRate;
 			DbgMsg("%s() OK. (Channels=%ld, SamplingRate=%ld, BitRate=%ld)\n", __FUNCTION__, pDtsType->nChannels, pDtsType->nSampleRate, pDtsType->nBitRate );
+			break;
+		}
+		case OMX_IndexParamAudioAPE:
+		{
+			OMX_AUDIO_PARAM_APETYPE *pApeType = (OMX_AUDIO_PARAM_APETYPE *)ComponentParamStruct;
+
+			if( pApeType->nPortIndex != FFDEC_AUD_INPORT_INDEX){
+				NX_ErrMsg("%s Bad port index.(%d)\n", __FUNCTION__, nParamIndex);
+				return OMX_ErrorBadPortIndex;
+			}
+
+			memcpy( &pDecComp->inPortType.apeType, pApeType, sizeof(OMX_AUDIO_PARAM_APETYPE) );
+
+			pDecComp->outPortType.nChannels = FFMIN(2, pApeType->nChannels);
+			pDecComp->outPortType.nSamplingRate = pApeType->nSampleRate;
+			DbgMsg("%s() OK. (Channels=%ld, SamplingRate=%ld, BitRate=%ld)\n", __FUNCTION__, pApeType->nChannels, pApeType->nSampleRate, pApeType->nBitRate );
 			break;
 		}
 		case OMX_IndexParamAudioFLAC:
@@ -1077,6 +1117,12 @@ static int openAudioCodec(NX_FFDEC_AUDIO_COMP_TYPE *pDecComp)
 			sampleRate = pDecComp->inPortType.dtsType.nSampleRate;
 			DbgMsg("Audio coding type DTS, channels=%d, samplingrate=%d\n", channels, sampleRate);
 			break;
+		case OMX_AUDIO_CodingAPE:
+			codecId = CODEC_ID_APE;
+			channels = pDecComp->inPortType.apeType.nChannels;
+			sampleRate = pDecComp->inPortType.apeType.nSampleRate;
+			DbgMsg("Audio coding type APE, channels=%d, samplingrate=%d\n", channels, sampleRate);
+			break;
 		case OMX_AUDIO_CodingFLAC:
 			codecId = CODEC_ID_FLAC;
 			channels = pDecComp->inPortType.flacType.nChannels;
@@ -1155,6 +1201,11 @@ static int openAudioCodec(NX_FFDEC_AUDIO_COMP_TYPE *pDecComp)
 	pDecComp->avctx->request_channel_layout = FFMIN(2, channels);
 	pDecComp->avctx->block_align = blockAlign;
 	pDecComp->avctx->bit_rate = bitRate;
+
+	if(codecId == CODEC_ID_APE)
+	{
+		pDecComp->avctx->bits_per_coded_sample = 16;
+	}
 
 	TRACE("channels = %d, request_channels = %d, block_align=%d\n", pDecComp->avctx->channels, pDecComp->avctx->request_channels, pDecComp->avctx->block_align );
 

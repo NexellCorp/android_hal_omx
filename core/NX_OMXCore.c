@@ -64,6 +64,7 @@ static OMX_ERRORTYPE RegisterAllComponents()
 	NX_OMXRegisterComponent("OMX.NX.AUDIO_DECODER.FFMPEG.wma",		"libNX_OMX_AUDIO_DECODER_FFMPEG",	"audio_decoder.x-ms-wma",	NULL);
 	NX_OMXRegisterComponent("OMX.NX.AUDIO_DECODER.FFMPEG.dts",		"libNX_OMX_AUDIO_DECODER_FFMPEG",	"audio_decoder.dts",		NULL);
 	NX_OMXRegisterComponent("OMX.NX.AUDIO_DECODER.FFMPEG.flac",		"libNX_OMX_AUDIO_DECODER_FFMPEG",	"audio_decoder.flac",		NULL);
+	NX_OMXRegisterComponent("OMX.NX.AUDIO_DECODER.FFMPEG.ape",		"libNX_OMX_AUDIO_DECODER_FFMPEG",	"audio_decoder.ape",		NULL);
 #endif
 	NX_OMXRegisterComponent("OMX.NX.VIDEO_DECODER.avc",				"libNX_OMX_VIDEO_DECODER",			"video_decoder.avc",		NULL);
 	NX_OMXRegisterComponent("OMX.NX.VIDEO_DECODER.mpeg4",			"libNX_OMX_VIDEO_DECODER",			"video_decoder.mpeg4",		NULL);
