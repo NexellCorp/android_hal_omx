@@ -259,7 +259,8 @@ int NX_DecodeAvcFrame(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_QUEUE *pInQueue, N
 		ret = NX_VidDecDecodeFrame( pDecComp->hVpuCodec, &decIn, &decOut );
 	}
 
-	TRACE("decOut : outImgIdx(%d) decIdx(%d) readPos(%d), writePos(%d) \n", decOut.outImgIdx, decOut.outDecIdx, decOut.strmReadPos, decOut.strmWritePos );
+	TRACE(">>> [%06ld/%06ld] decOut : outImgIdx(%d) decIdx(%d) readPos(%d), writePos(%d) \n",
+		pDecComp->inFrameCount, pDecComp->outFrameCount, decOut.outImgIdx, decOut.outDecIdx, decOut.strmReadPos, decOut.strmWritePos );
 	TRACE("Output Buffer : ColorFormat(0x%08x), NatvieBuffer(%d), Thumbnail(%d), MetaDataInBuffer(%d), ret(%d)\n",
 			pDecComp->outputFormat.eColorFormat, pDecComp->bUseNativeBuffer, pDecComp->bEnableThumbNailMode, pDecComp->bMetaDataInBuffers, ret );
 
@@ -280,7 +281,9 @@ int NX_DecodeAvcFrame(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_QUEUE *pInQueue, N
 				pOutBuf->nTimeStamp = pInBuf->nTimeStamp;
 				pOutBuf->nFlags     = pInBuf->nFlags;
 			}
-			TRACE("ThumbNail Mode : pOutBuf->nAllocLen = %ld, pOutBuf->nFilledLen = %ld\n", pOutBuf->nAllocLen, pOutBuf->nFilledLen );
+			pOutBuf->nFlags = OMX_BUFFERFLAG_ENDOFFRAME;
+			TRACE("ThumbNail Mode : pOutBuf->nAllocLen = %ld, pOutBuf->nFilledLen = %ld, 0x%08x\n",
+					pOutBuf->nAllocLen, pOutBuf->nFilledLen, pOutBuf->nFlags );
 			pDecComp->outFrameCount++;
 			pDecComp->pCallbacks->FillBufferDone(pDecComp->hComp, pDecComp->hComp->pApplicationPrivate, pOutBuf);
 			goto Exit;
@@ -332,6 +335,7 @@ int NX_DecodeAvcFrame(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_QUEUE *pInQueue, N
 				pOutBuf->nTimeStamp = pInBuf->nTimeStamp;
 				pOutBuf->nFlags     = pInBuf->nFlags;
 			}
+			pOutBuf->nFlags = OMX_BUFFERFLAG_ENDOFFRAME;
 			TRACE("Native Mode : pOutBuf->nTimeStamp = %lld\n", pOutBuf->nTimeStamp/1000);
 
 			DeInterlaceFrame( pDecComp, &decOut );

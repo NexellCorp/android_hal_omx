@@ -1302,7 +1302,6 @@ static OMX_S32 EncodeFrame(NX_VIDENC_COMP_TYPE *pEncComp, NX_QUEUE *pInQueue, NX
 	OMX_S32 *recodingBuffer;
 	gralloc_module_t const *mAllocMod;
 	hw_module_t const *module;
-
 	FUNC_IN;
 
 	if( NX_PopQueue( pInQueue, (void**)&pInBuf ) || pInBuf == NULL )
@@ -1310,7 +1309,8 @@ static OMX_S32 EncodeFrame(NX_VIDENC_COMP_TYPE *pEncComp, NX_QUEUE *pInQueue, NX
 		return 0;
 	}
 
-	if( pInBuf->nFlags & OMX_BUFFERFLAG_EOS )
+	//	Receive EOS & Have no Input Buffer.
+	if( pInBuf->nFlags & OMX_BUFFERFLAG_EOS && pInBuf->nFilledLen <= 0 )
 	{
 		pInBuf->nFilledLen = 0;		//	wast all input buffer
 		pEncComp->pCallbacks->EmptyBufferDone( pEncComp, pEncComp->hComp->pApplicationPrivate, pInBuf );
@@ -1470,9 +1470,9 @@ static OMX_S32 EncodeFrame(NX_VIDENC_COMP_TYPE *pEncComp, NX_QUEUE *pInQueue, NX
 		pDsi->nFilledLen = pEncComp->seqBufSize;
 
 		DbgMsg(">> Send DSI Frame(%d) <<\n", pEncComp->seqBufSize);
-		NX_PopQueue( pOutQueue, (void**)&pOutBuf );
 		pEncComp->bSendCodecSpecificInfo = OMX_TRUE;
 		pEncComp->pCallbacks->FillBufferDone( pEncComp->hComp, pEncComp->hComp->pApplicationPrivate, pDsi );
+		NX_PopQueue( pOutQueue, (void**)&pOutBuf );
 	}
 
 	encIn.pImage = &inputMem;
@@ -1499,7 +1499,10 @@ static OMX_S32 EncodeFrame(NX_VIDENC_COMP_TYPE *pEncComp, NX_QUEUE *pInQueue, NX
 	if( encOut.frameType )
 		pOutBuf->nFlags |= OMX_BUFFERFLAG_SYNCFRAME;
 
-	memcpy(pOutBuf->pBuffer, encOut.outBuf, encOut.bufSize);
+	if( pInBuf->nFlags & OMX_BUFFERFLAG_EOS )
+		pOutBuf->nFlags |= OMX_BUFFERFLAG_EOS;
+
+	NxMemcpy(pOutBuf->pBuffer, encOut.outBuf, encOut.bufSize);
 	pOutBuf->nOffset = 0;
 	pOutBuf->nTimeStamp = pInBuf->nTimeStamp;
 	pOutBuf->nFilledLen = encOut.bufSize;

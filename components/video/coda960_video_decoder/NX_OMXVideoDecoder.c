@@ -2086,9 +2086,10 @@ int processEOS(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp)
 			if( 0 != PopVideoTimeStamp(pDecComp, &pOutBuf->nTimeStamp, &pOutBuf->nFlags )  )
 			{
 				pOutBuf->nTimeStamp = -1;
-				pOutBuf->nFlags     = 0x10;	//	Frame Flag
+				pOutBuf->nFlags     = OMX_BUFFERFLAG_ENDOFFRAME;	//	Frame Flag
 			}
-			TRACE("[%6ld]Send Buffer after EOS Receive( Delayed Frame. )\n", pDecComp->outFrameCount);
+			TRACE("[%6ld/%6ld]Send Buffer after EOS Receive( Delayed Frame. ), Flag = 0x%08x\n",
+				pDecComp->inFrameCount, pDecComp->outFrameCount, pOutBuf->nFlags);
 			pDecComp->outFrameCount++;
 			pDecComp->pCallbacks->FillBufferDone(pDecComp->hComp, pDecComp->hComp->pApplicationPrivate, pOutBuf);
 
