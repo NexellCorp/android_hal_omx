@@ -1522,6 +1522,9 @@ void FFmpegExtractor::stream_component_close(int stream_index)
 		ALOGV("packet_queue_abort audioq");
 		packet_queue_abort(&mAudioQ);
 		while (!mAbortRequest && !mAudioEOSReceived) {
+			// 20170104 added by ray park for seek hangup.
+			if( mFormatCtx->ctx_flags & 0x1000 )
+				break;
 			ALOGV("wait for audio received");
 			NX_Delay(10);
 		}
@@ -1913,6 +1916,65 @@ void *FFmpegExtractor::ReaderWrapper(void *me) {
 	return NULL;
 }
 
+void FFmpegExtractor::startSeekMonitor( int32_t mSec )
+{
+	pthread_attr_t attr;
+	pthread_attr_init(&attr);
+	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
+	exitSeekMonitor = false;
+	mSeekTimeoutTime = mSec;
+	pthread_create(&mSeekMonitorThread, &attr, SeekMonitorThreadStub, this);
+	pthread_attr_destroy(&attr);
+}
+
+void FFmpegExtractor::stopSeekMonitor()
+{
+	exitSeekMonitor = true;
+	pthread_join( mSeekMonitorThread, NULL );
+}
+
+static int64_t __gettime(void)
+{
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return (int64_t)tv.tv_sec * 1000000 + tv.tv_usec;
+}
+
+void *FFmpegExtractor::SeekMonitorThreadStub(void*me){
+	FFmpegExtractor *pObj = (FFmpegExtractor*)me;
+	return pObj->SeekMonitorThread();
+}
+
+void *FFmpegExtractor::SeekMonitorThread(){
+	int64_t endTime, curTime;
+	if( mSeekTimeoutTime == -1 ){
+		endTime = -1;
+	} else {
+		endTime = __gettime() + mSeekTimeoutTime * 1000;
+	}
+
+	while( !exitSeekMonitor )
+	{
+		curTime = __gettime();
+		if( -1 == mSeekTimeoutTime ){
+			usleep(1000);
+		} else{
+			if( curTime > endTime )
+			{
+				break;
+			}
+			usleep(1000);
+		}
+	}
+
+	if( !exitSeekMonitor )
+	{
+		mFormatCtx->ctx_flags |= 0x1000;
+		ALOGI("Forced make EOS !!!!");
+	}
+	return (void*)0xdeadface;
+}
+
 void FFmpegExtractor::readerEntry() {
 	int err, i, ret;
 	AVPacket pkt1, *pkt = &pkt1;
@@ -1948,10 +2010,14 @@ void FFmpegExtractor::readerEntry() {
 #endif
 
 		if (mSeekReq) {
-			ALOGI("readerEntry, mSeekReq: %d, mSeekFlags=0x%08x", mSeekReq, mSeekFlags);
+			ALOGI("readerEntry() : start seek ~~");
+			startSeekMonitor(5*1000);	//	5 sec
 			ret = avformat_seek_file(mFormatCtx, -1, INT64_MIN, mSeekPos, INT64_MAX, mSeekFlags);
+			stopSeekMonitor();
 			if (ret < 0) {
 				ALOGE("%s: error while seeking", mFormatCtx->filename);
+				mEOF2 = true;
+				goto fail;
 			} else {
 				if (mAudioStreamIdx >= 0) {
 					packet_queue_flush(&mAudioQ);
@@ -1961,9 +2027,9 @@ void FFmpegExtractor::readerEntry() {
 					packet_queue_flush(&mVideoQ);
 					packet_queue_put(&mVideoQ, &flush_pkt);
 				}
+				mEOF2 = false;
 			}
 			mSeekReq = 0;
-			mEOF2 = false;
 		}
 
 		/* if the queue are full, no need to read more */

@@ -149,6 +149,15 @@ private:
     static void *ReaderWrapper(void *me);
     void readerEntry();
 
+	//	20170104 added by ray park for seek monitoring.
+	bool exitSeekMonitor;
+	pthread_t mSeekMonitorThread;
+	int mSeekTimeoutTime;	//	milli seconds
+	void startSeekMonitor(int32_t mSec);
+	void stopSeekMonitor();
+	static void *SeekMonitorThreadStub(void*me);
+	void *SeekMonitorThread();
+
     DISALLOW_EVIL_CONSTRUCTORS(FFmpegExtractor);
 };
 
