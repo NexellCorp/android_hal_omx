@@ -6,7 +6,88 @@
 
 #include "NX_OMXVideoDecoder.h"
 #include "NX_DecoderUtil.h"
+#include "NX_AVCUtil.h"
 
+static int Mpeg2CheckPortReconfiguration( NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, OMX_BYTE inBuf, OMX_S32 inSize )
+{
+	if ( (inBuf != NULL) && (inSize > 0) )
+	{
+		int32_t w,h;	//	width, height, left, top, right, bottom
+		OMX_BYTE pbyStrm = inBuf;
+		uint32_t readSizeBit = 0;
+		uint32_t remainSizeBit = inSize * 8;
+
+		do
+		{
+			GetBitContext gb;
+			remainSizeBit = remainSizeBit - readSizeBit;
+			if( remainSizeBit < 6*8 )
+				break;
+			if( readSizeBit > 1024*8 )
+				break;
+			init_get_bits(&gb, pbyStrm, remainSizeBit);
+			pbyStrm++;
+
+			OMX_BYTE data[4];
+			data[0] = (OMX_BYTE)get_bits(&gb, 8);
+			data[1] = (OMX_BYTE)get_bits(&gb, 8);
+			data[2] = (OMX_BYTE)get_bits(&gb, 8);
+			data[3] = (OMX_BYTE)get_bits(&gb, 8);
+			readSizeBit = readSizeBit + 8*4;
+
+			// SPS start code
+			if ( (int32_t)data[0] == 0x00 && (int32_t)data[1] == 0x00 && (int32_t)data[2] == 0x01 && (int32_t)data[3] == 0xb3 )
+			{
+				{
+					w = get_bits(&gb, 12);
+					h = get_bits(&gb, 12);
+					readSizeBit = readSizeBit + 12*2;
+					{
+						if( pDecComp->width != w || pDecComp->height != h )
+						{
+							DbgMsg("New Video Resolution = %ld x %ld --> %d x %d\n", pDecComp->width, pDecComp->height, w, h);
+
+							//	Change Port Format & Resolution Information
+							pDecComp->pOutputPort->stdPortDef.format.video.nFrameWidth  = pDecComp->width  = w;
+							pDecComp->pOutputPort->stdPortDef.format.video.nFrameHeight = pDecComp->height = h;
+
+							//	Native Mode
+							if( pDecComp->bUseNativeBuffer )
+							{
+								pDecComp->pOutputPort->stdPortDef.nBufferSize = 4096;
+							}
+							else
+							{
+								pDecComp->pOutputPort->stdPortDef.nBufferSize = ((((w+15)>>4)<<4) * (((h+15)>>4)<<4))*3/2;
+							}
+
+							//	Need Port Reconfiguration
+							SendEvent( (NX_BASE_COMPNENT*)pDecComp, OMX_EventPortSettingsChanged, OMX_DirOutput, 0, NULL );
+							pDecComp->bPortReconfigure = OMX_TRUE;
+							if( OMX_TRUE == pDecComp->bInitialized )
+							{
+								pDecComp->bInitialized = OMX_FALSE;
+								InitVideoTimeStamp(pDecComp);
+								closeVideoCodec(pDecComp);
+								openVideoCodec(pDecComp);
+							}
+							pDecComp->pOutputPort->stdPortDef.bEnabled = OMX_FALSE;
+							return 1;
+						}
+						else
+						{
+							// DbgMsg("Video Resolution = %ld x %ld --> %d x %d\n", pDecComp->width, pDecComp->height, w, h);
+							return 0;
+						}
+					}
+					break;
+				}
+			}
+		} while(1);
+	}
+
+	return 0;
+}
 int NX_DecodeMpeg2Frame(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_QUEUE *pInQueue, NX_QUEUE *pOutQueue)
 {
 	OMX_BUFFERHEADERTYPE* pInBuf = NULL, *pOutBuf = NULL;
@@ -56,6 +137,7 @@ int NX_DecodeMpeg2Frame(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_QUEUE *pInQueue,
 		if( pInBuf->nFlags & OMX_BUFFERFLAG_CODECCONFIG )
 		{
 			DbgMsg("Copy Extra Data (%d)\n", inSize );
+			Mpeg2CheckPortReconfiguration( pDecComp, inData, inSize );
 			if( pDecComp->codecSpecificData )
 				free(pDecComp->codecSpecificData);
 			pDecComp->codecSpecificData = malloc(inSize);
@@ -99,6 +181,30 @@ int NX_DecodeMpeg2Frame(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_QUEUE *pInQueue,
 			memcpy( initBuf + pDecComp->codecSpecificDataSize, inData, inSize );
 		}
 
+		if( OMX_TRUE == pDecComp->bNeedSequenceData )
+		{
+			if( Mpeg2CheckPortReconfiguration( pDecComp, initBuf, initBufSize ) )
+			{
+				pDecComp->bNeedSequenceData = OMX_FALSE;
+				if( pDecComp->codecSpecificData )
+					free( pDecComp->codecSpecificData );
+				pDecComp->codecSpecificData = malloc(initBufSize);
+				memcpy( pDecComp->codecSpecificData, initBuf, initBufSize );
+				pDecComp->codecSpecificDataSize = initBufSize;
+				goto Exit;
+			}
+			else
+			{
+				pDecComp->bNeedSequenceData = OMX_FALSE;
+				if( pDecComp->codecSpecificData )
+					free( pDecComp->codecSpecificData );
+				pDecComp->codecSpecificData = malloc(initBufSize);
+				memcpy( pDecComp->codecSpecificData, initBuf, initBufSize );
+				pDecComp->codecSpecificDataSize = initBufSize;
+				goto Exit;
+			}
+		}
+
 		//	Initialize VPU
 		ret = InitializeCodaVpu(pDecComp, initBuf, initBufSize );
 		free( initBuf );
@@ -127,6 +233,17 @@ int NX_DecodeMpeg2Frame(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_QUEUE *pInQueue,
 	}
 	else
 	{
+		if( Mpeg2CheckPortReconfiguration( pDecComp, inData, inSize ) )
+		{
+			pDecComp->bNeedSequenceData = OMX_FALSE;
+			if( pDecComp->codecSpecificData )
+				free( pDecComp->codecSpecificData );
+			pDecComp->codecSpecificData = malloc(inSize);
+			memcpy( pDecComp->codecSpecificData, inData, inSize );
+			pDecComp->codecSpecificDataSize = inSize;
+			goto Exit;
+		}
+
 		decIn.strmBuf = inData;
 		decIn.strmSize = inSize;
 		decIn.timeStamp = pInBuf->nTimeStamp;

@@ -6,7 +6,94 @@
 
 #include "NX_OMXVideoDecoder.h"
 #include "NX_DecoderUtil.h"
+#include "NX_AVCUtil.h"
 
+static int VP8CheckPortReconfiguration( NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, OMX_BYTE inBuf, OMX_S32 inSize )
+{
+	if ( (inBuf != NULL) && (inSize > 0) )
+	{
+		int32_t w,h;	//	width, height, left, top, right, bottom
+		OMX_BYTE pbyStrm = inBuf;
+		uint32_t readSizeBit = 0;
+		uint32_t remainSizeBit = inSize * 8;
+
+		do
+		{
+
+			GetBitContext gb;
+			remainSizeBit = remainSizeBit - readSizeBit;
+			if( remainSizeBit < 6*8 )
+				break;
+			if( readSizeBit > 1024*8 )
+				break;
+			init_get_bits(&gb, pbyStrm, remainSizeBit);
+			pbyStrm++;
+
+			OMX_BYTE data[10];
+			data[0] = (OMX_BYTE)get_bits(&gb, 8);
+			data[1] = (OMX_BYTE)(OMX_BYTE)get_bits(&gb, 8);
+			data[2] = (OMX_BYTE)get_bits(&gb, 8);
+			data[3] = (OMX_BYTE)get_bits(&gb, 8);
+			data[4] = (OMX_BYTE)get_bits(&gb, 8);
+			data[5] = (OMX_BYTE)get_bits(&gb, 8);
+			data[6] = (OMX_BYTE)get_bits(&gb, 8);
+			data[7] = (OMX_BYTE)get_bits(&gb, 8);
+			data[8] = (OMX_BYTE)get_bits(&gb, 8);
+			data[9] = (OMX_BYTE)get_bits(&gb, 8);
+			readSizeBit = readSizeBit + 8*10;
+
+			// vet via sync code
+			if ( (int32_t)data[3] == 0x9d && (int32_t)data[4] == 0x01 && (int32_t)data[5] == 0x2a )
+			{
+				{
+					w = ((int32_t)data[6] | ((int32_t)data[7] << 8)) & 0x3fff;
+            		h = ((int32_t)data[8] | ((int32_t)data[9] << 8)) & 0x3fff;
+					{
+						if( pDecComp->width != w || pDecComp->height != h )
+						{
+							DbgMsg("New Video Resolution = %ld x %ld --> %d x %d\n", pDecComp->width, pDecComp->height, w, h);
+
+							//	Change Port Format & Resolution Information
+							pDecComp->pOutputPort->stdPortDef.format.video.nFrameWidth  = pDecComp->width  = w;
+							pDecComp->pOutputPort->stdPortDef.format.video.nFrameHeight = pDecComp->height = h;
+
+							//	Native Mode
+							if( pDecComp->bUseNativeBuffer )
+							{
+								pDecComp->pOutputPort->stdPortDef.nBufferSize = 4096;
+							}
+							else
+							{
+								pDecComp->pOutputPort->stdPortDef.nBufferSize = ((((w+15)>>4)<<4) * (((h+15)>>4)<<4))*3/2;
+							}
+
+							//	Need Port Reconfiguration
+							SendEvent( (NX_BASE_COMPNENT*)pDecComp, OMX_EventPortSettingsChanged, OMX_DirOutput, 0, NULL );
+							pDecComp->bPortReconfigure = OMX_TRUE;
+							if( OMX_TRUE == pDecComp->bInitialized )
+							{
+								pDecComp->bInitialized = OMX_FALSE;
+								InitVideoTimeStamp(pDecComp);
+								closeVideoCodec(pDecComp);
+								openVideoCodec(pDecComp);
+							}
+							pDecComp->pOutputPort->stdPortDef.bEnabled = OMX_FALSE;
+							return 1;
+						}
+						else
+						{
+							// DbgMsg("Video Resolution = %ld x %ld --> %d x %d\n", pDecComp->width, pDecComp->height, w, h);
+							return 0;
+						}
+					}
+					break;
+				}
+			}
+		} while(1);
+	}
+
+	return 0;
+}
 
 static int MakeVP8DecoderSpecificInfo( NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp )
 {
@@ -84,15 +171,39 @@ int NX_DecodeVP8Frame(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_QUEUE *pInQueue, N
 	//	Step 2. Find First Key Frame & Do Initialize VPU
 	if( OMX_FALSE == pDecComp->bInitialized )
 	{
-		OMX_S32 size;
-		size = MakeVP8DecoderSpecificInfo( pDecComp );
-		size += MakeVP8Stream( inData, inSize, pDecComp->tmpInputBuffer + size );
+		int initBufSize = 0;
+		unsigned char *initBuf = NULL;
+		OMX_S32 size = 0;
 
+		if( pDecComp->codecSpecificDataSize == 0 && pDecComp->nExtraDataSize>0 )
+		{
+			initBufSize = inSize + pDecComp->nExtraDataSize;
+			initBuf = (unsigned char *)malloc( initBufSize );
+			memcpy( initBuf, pDecComp->pExtraData, pDecComp->nExtraDataSize );
+			memcpy( initBuf + pDecComp->nExtraDataSize, inData, inSize );
+		}
+		else
+		{
+			initBufSize = inSize + pDecComp->codecSpecificDataSize;
+			initBuf = (unsigned char *)malloc( initBufSize );
+			memcpy( initBuf, pDecComp->codecSpecificData, pDecComp->codecSpecificDataSize );
+			memcpy( initBuf + pDecComp->codecSpecificDataSize, inData, inSize );
+		}
+
+		size = MakeVP8DecoderSpecificInfo( pDecComp );
+		size += MakeVP8Stream( initBuf, initBufSize, pDecComp->tmpInputBuffer + size );
 		//	Initialize VPU
 		ret = InitializeCodaVpu(pDecComp, pDecComp->tmpInputBuffer, size );
-		if( 0 != ret )
+		free( initBuf );
+
+		if( 0 > ret )
 		{
 			ErrMsg("VPU initialized Failed!!!!\n");
+			goto Exit;
+		}
+		else if( ret > 0  )
+		{
+			ret = 0;
 			goto Exit;
 		}
 
@@ -108,6 +219,17 @@ int NX_DecodeVP8Frame(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_QUEUE *pInQueue, N
 	}
 	else
 	{
+		if( VP8CheckPortReconfiguration( pDecComp, inData, inSize ) )
+		{
+			pDecComp->bNeedSequenceData = OMX_FALSE;
+			if( pDecComp->codecSpecificData )
+				free( pDecComp->codecSpecificData );
+			pDecComp->codecSpecificData = malloc(inSize);
+			memcpy( pDecComp->codecSpecificData, inData, inSize );
+			pDecComp->codecSpecificDataSize = inSize;
+			goto Exit;
+		}
+
 		inSize = MakeVP8Stream( inData, inSize, pDecComp->tmpInputBuffer );
 		decIn.strmBuf = pDecComp->tmpInputBuffer;
 		decIn.strmSize = inSize;
