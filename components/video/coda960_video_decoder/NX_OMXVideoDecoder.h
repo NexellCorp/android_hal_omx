@@ -54,7 +54,7 @@ OMX_ERRORTYPE NX_VideoDecoder_ComponentInit (OMX_HANDLETYPE hComponent);
 #define	VID_OUTPORT_MIN_BUF_CNT_H264_UNDER720P	22			//	~720p
 #define	VID_OUTPORT_MIN_BUF_CNT_H264_1080P		12			//	1080p
 
-#define	VID_OUTPORT_MIN_BUF_CNT_INTERLACE		4
+#define	VID_OUTPORT_MIN_BUF_CNT_INTERLACE		6			// hardware deinterlace
 
 #define	VID_OUTPORT_MIN_BUF_SIZE	(4*1024)			//	Video Memory Structure Size
 
@@ -200,7 +200,13 @@ struct tNX_VIDDEC_VIDEO_COMP_TYPE{
 	OMX_BOOL					bNeedSequenceData;
 
 	OMX_BOOL					bInterlaced;		// 0 : Progressive, 1 : SW_Interlaced, 2 : 3D_Interlaced
+	DEINTERLACE_MODE 			eDeInterlaceMode;
 	void						*hDeinterlace;
+	void						*hScaler;
+
+	OMX_BOOL					bPortReconfigure;
+	OMX_BOOL					bIsPortDisable;
+	NX_SEMAPHORE				*hPortCtrlSem;
 };
 
 
