@@ -690,49 +690,13 @@ static OMX_ERRORTYPE NX_VidDec_SetParameter (OMX_HANDLETYPE hComp, OMX_INDEXTYPE
 				{
 					DbgMsg("CodecID(%ld) NX_AVC_DEC(%d)\n", pDecComp->videoCodecId, NX_AVC_DEC);
 
-					if( pDecComp->videoCodecId == NX_MP2_DEC )
+					/*if( pDecComp->bInterlaced )
 					{
-						char value[PROPERTY_VALUE_MAX];
-						property_get("deinterlace.mode", value, "0");
-
-						pDecComp->bInterlaced = 0;
-						pDecComp->eDeInterlaceMode = 0;
-
-						if ( !strcmp(value, "10") )
-						{
-							pDecComp->bInterlaced = 2;
-						}
-						else
-						{
-							if ( !strcmp(value, "1") )
-							{
-								pDecComp->eDeInterlaceMode = DEINTERLACE_BOB;
-								pDecComp->bInterlaced = 1;
-							}
-							else if ( !strcmp(value, "2") )
-							{
-								pDecComp->eDeInterlaceMode = DEINTERLACE_BLEND;
-								pDecComp->bInterlaced = 1;
-							}
-							else if ( !strcmp(value, "3") )
-							{
-								pDecComp->eDeInterlaceMode = DEINTERLACE_LINEAR;
-								pDecComp->bInterlaced = 1;
-							}
-						}
-
-						if(pDecComp->bInterlaced)
-						{
-							pDecComp->pOutputPort->stdPortDef.nBufferCountMin = VID_OUTPORT_MIN_BUF_CNT_INTERLACE;
-							pDecComp->pOutputPort->stdPortDef.nBufferCountActual = VID_OUTPORT_MIN_BUF_CNT_INTERLACE;
-						}
-						else
-						{
-							pDecComp->pOutputPort->stdPortDef.nBufferCountMin    = VID_OUTPORT_MIN_BUF_CNT;
-							pDecComp->pOutputPort->stdPortDef.nBufferCountActual = VID_OUTPORT_MIN_BUF_CNT;
-						}
+						TRACE("INTERLACE Buffer Set\n");
+						pDecComp->pOutputPort->stdPortDef.nBufferCountMin = VID_OUTPORT_MIN_BUF_CNT_INTERLACE;
+						pDecComp->pOutputPort->stdPortDef.nBufferCountActual = VID_OUTPORT_MIN_BUF_CNT_INTERLACE;
 					}
-					else if( pDecComp->videoCodecId == NX_AVC_DEC )
+					else*/ if( pDecComp->videoCodecId == NX_AVC_DEC )
 					{
 						int32_t MBs = ((pDecComp->width+15)>>4)*((pDecComp->height+15)>>4);
 						//	Under 720p
@@ -1006,15 +970,6 @@ static OMX_ERRORTYPE NX_VidDec_FreeBuffer (OMX_HANDLETYPE hComponent, OMX_U32 nP
 				pPort->stdPortDef.bPopulated = OMX_FALSE;
 				NX_PostSem(pDecComp->hBufAllocSem);
 			}
-
-			if(pPort->nAllocatedBuf == 0)
-			{
-				if(	pDecComp->bIsPortDisable == OMX_TRUE )
-				{
-					NX_PostSem( pDecComp->hPortCtrlSem );
-				}
-			}
-
 			return OMX_ErrorNone;
 		}
 	}
@@ -1148,8 +1103,6 @@ static OMX_ERRORTYPE NX_VidDec_StateTransition( NX_VIDDEC_VIDEO_COMP_TYPE *pDecC
 				pDecComp->eCmdBufThread = NX_THREAD_CMD_PAUSE;
 				//	Create buffer control semaphore
 				pDecComp->hBufCtrlSem = NX_CreateSem(0, 1);
-				//	Create port control semaphore
-				pDecComp->hPortCtrlSem = NX_CreateSem(0, 1);
 				//	Create buffer mangement semaphore
 				pDecComp->hBufChangeSem = NX_CreateSem(0, VPUDEC_VID_NUM_PORT*1024);
 				//	Create buffer management thread
@@ -1181,14 +1134,11 @@ static OMX_ERRORTYPE NX_VidDec_StateTransition( NX_VIDDEC_VIDEO_COMP_TYPE *pDecC
 				pDecComp->eCmdBufThread = NX_THREAD_CMD_EXIT;
 				NX_PostSem( pDecComp->hBufChangeSem );
 				NX_PostSem( pDecComp->hBufCtrlSem );
-				NX_PostSem( pDecComp->hPortCtrlSem);
 				pthread_join( pDecComp->hBufThread, NULL );
 				NX_DestroySem( pDecComp->hBufChangeSem );
 				NX_DestroySem( pDecComp->hBufCtrlSem );
-				NX_DestroySem( pDecComp->hPortCtrlSem);
 				pDecComp->hBufChangeSem = NULL;
 				pDecComp->hBufCtrlSem = NULL;
-				pDecComp->hPortCtrlSem = NULL;
 
 				//	Wait buffer free
 				for( i=0 ; i<pDecComp->nNumPort ; i++ ){
@@ -1532,9 +1482,6 @@ static void NX_VidDec_CommandProc( NX_BASE_COMPNENT *pBaseComp, OMX_COMMANDTYPE 
 			nData1 = OMX_CommandPortDisable;
 			nData2 = nParam1;
 			//NX_PostSem( pDecComp->hBufCtrlSem );
-			pDecComp->bIsPortDisable = OMX_TRUE;
-			NX_PendSem( pDecComp->hPortCtrlSem );
-			pDecComp->bIsPortDisable = OMX_FALSE;
 			pthread_mutex_unlock( &pDecComp->hBufMutex );
 
 			break;
@@ -1745,8 +1692,8 @@ int openVideoCodec(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp)
 	pDecComp->isOutIdr = OMX_FALSE;
 
 	//	FIXME : Move to Port SetParameter Part
-	// pDecComp->width = pDecComp->pInputPort->stdPortDef.format.video.nFrameWidth;
-	// pDecComp->height = pDecComp->pInputPort->stdPortDef.format.video.nFrameHeight;
+	pDecComp->width = pDecComp->pInputPort->stdPortDef.format.video.nFrameWidth;
+	pDecComp->height = pDecComp->pInputPort->stdPortDef.format.video.nFrameHeight;
 
 	CodecTagToMp4Class( pDecComp->codecTag, &pDecComp->videoCodecId, &mp4Class );
 
@@ -1805,33 +1752,20 @@ void closeVideoCodec(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp)
 		{
 			if ( pDecComp->bInterlaced == 1 )
 				NX_DeInterlaceClose( pDecComp->hDeinterlace );
-			else if ( pDecComp->bInterlaced == 2 )
-			{
-				NX_GTDeintClose( (NX_GT_DEINT_HANDLE)pDecComp->hDeinterlace );
-				if(pDecComp->hScaler)
-				{
-					NX_GTSclClose( pDecComp->hScaler );
-					pDecComp->hScaler = NULL;
-				}
-			}
+			//else if ( pDecComp->bInterlaced == 2 )
+			//	NX_GTDeintClose( (NX_GT_DEINT_HANDLE)pDecComp->hDeinterlace );
 
 			pDecComp->bInterlaced = 0;
 			pDecComp->hDeinterlace = NULL;
 		}
 
-		if(pDecComp->bInitialized == OMX_TRUE)
-		{
-			NX_VidDecFlush( pDecComp->hVpuCodec );
-		}
+		NX_VidDecFlush( pDecComp->hVpuCodec );
 		NX_VidDecClose( pDecComp->hVpuCodec );
 		pDecComp->bInitialized = OMX_FALSE;
 		pDecComp->bNeedKey = OMX_TRUE;
 		pDecComp->hVpuCodec = NULL;
 		pDecComp->isOutIdr = OMX_FALSE;
-		if(pDecComp->bPortReconfigure)
-			pDecComp->bPortReconfigure = OMX_FALSE;
-		else
-			pDecComp->codecSpecificDataSize = 0;
+		pDecComp->codecSpecificDataSize = 0;
 		pDecComp->bNeedSequenceData = 0;
 		FUNC_OUT;
 	}
@@ -1850,7 +1784,6 @@ int flushVideoCodec(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp)
 			case NX_MP2_DEC:
 				//break;
 			default:
-			if(pDecComp->bInitialized == OMX_TRUE)
 				NX_VidDecFlush( pDecComp->hVpuCodec );
 			break;
 		}
@@ -1880,25 +1813,61 @@ int InitializeCodaVpu(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, unsigned char *buf, i
 
 		iNumCurRegBuf = pDecComp->outUsableBuffers;
 
-		if ( VID_ERR_NONE != (ret = NX_VidDecParseVideoCfg( pDecComp->hVpuCodec, &seqIn, &seqOut )) )
+		if ( pDecComp->bInterlaced == 0 )
 		{
-			ALOGE("%s : NX_VidDecParseVideoCfg() is failed!!\n", __func__);
-			return ret;
+			if ( VID_ERR_NONE != (ret = NX_VidDecParseVideoCfg( pDecComp->hVpuCodec, &seqIn, &seqOut )) )
+			{
+				ALOGE("%s : NX_VidDecParseVideoCfg() is failed!!\n", __func__);
+				return ret;
+			}
 		}
 
 		if( pDecComp->bUseNativeBuffer == OMX_TRUE )
 		{
+			char value[PROPERTY_VALUE_MAX];
+			property_get("deinterlace.mode", value, "0");
+
 			DbgMsg("[%ld] Native Buffer Mode : iNumCurRegBuf=%ld, ExtraSize = %ld, MAX_DEC_FRAME_BUFFERS = %d\n",
 				pDecComp->instanceId, iNumCurRegBuf, pDecComp->codecSpecificDataSize, MAX_DEC_FRAME_BUFFERS );
 
-			if( 1 == pDecComp->bInterlaced )
+			if ( (seqOut.isInterlace) && (pDecComp->bInterlaced == 0) && (strcmp(value, "0")) )
 			{
-				pDecComp->hDeinterlace = NX_DeInterlaceOpen( pDecComp->eDeInterlaceMode );
-			}
-			else if( 2 == pDecComp->bInterlaced )
-			{
-				pDecComp->hDeinterlace = (void *)NX_GTDeintOpen( seqOut.width, seqOut.height, MAX_GRAPHIC_BUF_SIZE );
-				pDecComp->hScaler = (void *)NX_GTSclOpen( seqOut.width, seqOut.height, seqOut.width, seqOut.height, MAX_GRAPHIC_BUF_SIZE );
+				/*if ( !strcmp(value, "10") )
+				{
+					pDecComp->hDeinterlace = (void *)NX_GTDeintOpen( seqOut.width, seqOut.height, MAX_GRAPHIC_BUF_SIZE );
+					pDecComp->bInterlaced = 2;
+				}
+				else*/
+				{
+					DEINTERLACE_MODE eDeInterlaceMode = 0;
+
+					if ( !strcmp(value, "1") )
+						eDeInterlaceMode = DEINTERLACE_BOB;
+					else if ( !strcmp(value, "2") )
+						eDeInterlaceMode = DEINTERLACE_BLEND;
+					else if ( !strcmp(value, "3") )
+						eDeInterlaceMode = DEINTERLACE_LINEAR;
+
+					pDecComp->hDeinterlace = NX_DeInterlaceOpen( eDeInterlaceMode );
+					pDecComp->bInterlaced = 1;
+				}
+
+				//if ( (pDecComp->pOutputPort->stdPortDef.nBufferCountMin != VID_OUTPORT_MIN_BUF_CNT_INTERLACE) || (pDecComp->pOutputPort->stdPortDef.nBufferCountActual != VID_OUTPORT_MIN_BUF_CNT_INTERLACE) )
+				{
+					// Port Reconfiguration
+					SendEvent( (NX_BASE_COMPNENT*)pDecComp, OMX_EventPortSettingsChanged, OMX_DirOutput, 0, NULL );
+
+					// Change Port Format
+					//pDecComp->pOutputPort->stdPortDef.nBufferCountMin = VID_OUTPORT_MIN_BUF_CNT_INTERLACE;
+					//pDecComp->pOutputPort->stdPortDef.nBufferCountActual = VID_OUTPORT_MIN_BUF_CNT_INTERLACE;
+
+					//InitVideoTimeStamp(pDecComp);
+					//closeVidreoCodec(pDecComp);
+					//openVideoCodec(pDecComp);
+
+					pDecComp->pOutputPort->stdPortDef.bEnabled = OMX_FALSE;
+					return 1;
+				}
 			}
 
 			//	Translate Gralloc Memory Buffer Type To Nexell Video Memory Type
@@ -1964,7 +1933,6 @@ int InitializeCodaVpu(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, unsigned char *buf, i
 		seqIn.width = seqOut.width;
 		seqIn.height = seqOut.height;
 		ret = NX_VidDecInit( pDecComp->hVpuCodec, &seqIn );
-		pDecComp->bInitialized = OMX_TRUE;
 
 		pDecComp->minRequiredFrameBuffer = seqOut.minBuffers;
 		pDecComp->outBufferable = seqOut.numBuffers - seqOut.minBuffers;
@@ -2227,31 +2195,15 @@ void DeInterlaceFrame( NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_VID_DEC_OUT *pDec
 
 		close(ion_fd);
 	}
-	else if ( pDecComp->bInterlaced == 2 )
+	/*else if ( pDecComp->bInterlaced == 2 )
 	{
 		int ret = 0;
-		struct private_handle_t const *handle = (struct private_handle_t const *)pDecComp->pOutputBuffers[pDecComp->outUsableBufferIdx]->pBuffer;
-		NX_MEMORY_INFO memInfo;
-		memInfo.privateDesc = handle->share_fd;
-		pDecComp->hVidFrameBuf[pDecComp->outUsableBufferIdx]->privateDesc[0] = (void*)&memInfo;
-
-		if(pDecOut->isInterlace)
+		ret = NX_GTDeintDoDeinterlace( (NX_GT_DEINT_HANDLE)pDecComp->hDeinterlace, &pDecOut->outImg, pDecComp->hVidFrameBuf[pDecComp->outUsableBufferIdx] );
+		if (  ret < 0 )
 		{
-			ret = NX_GTDeintDoDeinterlace( (NX_GT_DEINT_HANDLE)pDecComp->hDeinterlace, &pDecOut->outImg, pDecComp->hVidFrameBuf[pDecComp->outUsableBufferIdx] );
-			if (  ret < 0 )
-			{
-				ErrMsg("NX_GTDeintDoDeinterlace() Fail, Handle = %x, return = %d \n", pDecComp->hDeinterlace, ret );
-			}
+			TRACE("NX_GTDeintDoDeinterlace() Fail, Handle = %x, return = %d \n", pDecComp->hDeinterlace, ret );
 		}
-		else
-		{
-			ret = NX_GTSclDoScale( (NX_GT_SCALER_HANDLE)pDecComp->hScaler, &pDecOut->outImg, pDecComp->hVidFrameBuf[pDecComp->outUsableBufferIdx] );
-			if (  ret < 0 )
-			{
-				ErrMsg("NX_GTSclDoScale() Fail, Handle = %x, return = %d \n", pDecComp->hDeinterlace, ret );
-			}
-		}
-	}
+	}*/
 
 	NX_VidDecClrDspFlag( pDecComp->hVpuCodec, NULL, pDecOut->outImgIdx );
 }

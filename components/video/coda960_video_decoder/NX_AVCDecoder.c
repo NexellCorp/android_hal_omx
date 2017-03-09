@@ -53,7 +53,6 @@ static int AVCCheckPortReconfiguration( NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, OMX
 
 							//	Need Port Reconfiguration
 							SendEvent( (NX_BASE_COMPNENT*)pDecComp, OMX_EventPortSettingsChanged, OMX_DirOutput, 0, NULL );
-							pDecComp->bPortReconfigure = OMX_TRUE;
 							if( OMX_TRUE == pDecComp->bInitialized )
 							{
 								pDecComp->bInitialized = OMX_FALSE;
@@ -62,13 +61,12 @@ static int AVCCheckPortReconfiguration( NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, OMX
 								openVideoCodec(pDecComp);
 							}
 							pDecComp->pOutputPort->stdPortDef.bEnabled = OMX_FALSE;
-							return 1;
 						}
 						else
 						{
-							// DbgMsg("Video Resolution = %ld x %ld --> %d x %d\n", pDecComp->width, pDecComp->height, w, h);
-							return 0;
+							DbgMsg("Video Resolution = %ld x %ld --> %d x %d\n", pDecComp->width, pDecComp->height, w, h);
 						}
+						return 1;
 					}
 					break;
 				}
@@ -217,12 +215,6 @@ int NX_DecodeAvcFrame(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_QUEUE *pInQueue, N
 			}
 			else
 			{
-				pDecComp->bNeedSequenceData = OMX_FALSE;
-				if( pDecComp->codecSpecificData )
-					free( pDecComp->codecSpecificData );
-				pDecComp->codecSpecificData = malloc(initBufSize);
-				memcpy( pDecComp->codecSpecificData, initBuf, initBufSize );
-				pDecComp->codecSpecificDataSize = initBufSize;
 				goto Exit;
 			}
 		}
@@ -260,17 +252,6 @@ int NX_DecodeAvcFrame(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_QUEUE *pInQueue, N
 	}
 	else
 	{
-		if( AVCCheckPortReconfiguration( pDecComp, inData, inSize ) )
-		{
-			pDecComp->bNeedSequenceData = OMX_FALSE;
-			if( pDecComp->codecSpecificData )
-				free( pDecComp->codecSpecificData );
-			pDecComp->codecSpecificData = malloc(inSize);
-			memcpy( pDecComp->codecSpecificData, inData, inSize );
-			pDecComp->codecSpecificDataSize = inSize;
-			goto Exit;
-		}
-
 		decIn.strmBuf = inData;
 		decIn.strmSize = inSize;
 		decIn.timeStamp = pInBuf->nTimeStamp;

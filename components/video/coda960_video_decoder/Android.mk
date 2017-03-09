@@ -60,8 +60,8 @@ LOCAL_SHARED_LIBRARIES := \
 	libion \
 	libion-nexell \
 	libcutils \
-	libnx_deinterlace \
-	libnxgraphictools
+	libnx_deinterlace
+#	libnxgraphictools    
 
 LOCAL_LDFLAGS_arm += -L$(NX_LINUX_TOP)/library/lib -lnxvidrc_android
 LOCAL_LDFLAGS_arm64 += -L$(NX_LINUX_TOP)/library/lib/arm64 -lnxvidrc_android
