@@ -112,6 +112,11 @@ private:
     bool mVideoEOSReceived;
     bool mAudioEOSReceived;
 
+	// 20170515 added by hcjun for readEntry Thread
+    bool mbreadEntryExit;
+    int64_t mVideoPktTsPrev;
+    int64_t mAudioPktTsPrev;
+
     AVFormatContext *mFormatCtx;
     int mVideoStreamIdx;
     int mAudioStreamIdx;
@@ -157,6 +162,10 @@ private:
 	void stopSeekMonitor();
 	static void *SeekMonitorThreadStub(void*me);
 	void *SeekMonitorThread();
+
+	// 20170515 added by hcjun for readEntry Thread
+	int32_t resumeInit();
+    int32_t timeStampCheck(AVPacket *pkt);
 
     DISALLOW_EVIL_CONSTRUCTORS(FFmpegExtractor);
 };

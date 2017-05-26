@@ -289,7 +289,7 @@ FFMpegSource::FFMpegSource(const sp<FFmpegExtractor> &extractor, sp<MetaData> me
 
 	mMediaType = mStream->codec->codec_type;
 	mFirstKeyPktTimestamp = AV_NOPTS_VALUE;
-	mPktTsPrev	  = AV_NOPTS_VALUE;	
+	mPktTsPrev	  = AV_NOPTS_VALUE;
 }
 
 FFMpegSource::~FFMpegSource() {
@@ -526,7 +526,7 @@ retry:
 			av_free_packet(&pkt);
 			return 0;
 		}
-		
+
 		mp3Header = pkt.data[0]<<24 | pkt.data[1]<<16 | pkt.data[2]<<8 | pkt.data[3];
 		bFindHeader = Mp3CheckHeader(mp3Header);
 		if(!bFindHeader)
@@ -1365,7 +1365,7 @@ int FFmpegExtractor::stream_component_open(int stream_index)
 			meta->setCString(kKeyMIMEType, MEDIA_MIMETYPE_AUDIO_AC3);
 			break;
 		case AV_CODEC_ID_AAC:
-			ALOGV("AAC"); 
+			ALOGV("AAC");
 			uint32_t sr;
 			const uint8_t *header;
 			uint8_t profile, sf_index, channel;
@@ -1597,6 +1597,12 @@ int FFmpegExtractor::stream_seek(int64_t pos, enum AVMediaType media_type)
 	mSeekReq = 1;
 	mEOF2 = false;
 
+	if (mbreadEntryExit)
+	{
+		resumeInit();
+		mbreadEntryExit = false;
+	}
+
 	return SEEK;
 }
 
@@ -1779,6 +1785,10 @@ int FFmpegExtractor::initStreams()
 		//goto fail;
 	}
 
+   	mVideoPktTsPrev	= AV_NOPTS_VALUE;
+	mAudioPktTsPrev	= AV_NOPTS_VALUE;
+	mbreadEntryExit = false;
+
 	av_init_packet(&flush_pkt);
 	flush_pkt.data = (uint8_t *)"FLUSH";
 	flush_pkt.size = 0;
@@ -1906,6 +1916,16 @@ void FFmpegExtractor::stopReaderThread() {
 	void *dummy;
 	pthread_join(mReaderThread, &dummy);
 	mReaderThreadStarted = false;
+
+	/* close each stream */
+	if (mAudioStreamIdx >= 0)
+		stream_component_close(mAudioStreamIdx);
+	if (mVideoStreamIdx >= 0)
+		stream_component_close(mVideoStreamIdx);
+	if (mFormatCtx) {
+		avformat_close_input(&mFormatCtx);
+	}
+
 	ALOGD("Reader thread stopped");
 }
 
@@ -1986,6 +2006,7 @@ void FFmpegExtractor::readerEntry() {
 
 	mVideoEOSReceived = false;
 	mAudioEOSReceived = false;
+	mbreadEntryExit = false;
 
 	for (;;) {
 		if (mAbortRequest)
@@ -2082,6 +2103,12 @@ void FFmpegExtractor::readerEntry() {
 		if( mSeekReq )
 			continue;
 		ret = av_read_frame(mFormatCtx, pkt);
+
+		if (ret >= 0)
+		{
+			ret = timeStampCheck(pkt);
+		}
+
 		mProbePkts++;
 		if (ret < 0) {
 			if (ret == AVERROR_EOF || url_feof(mFormatCtx->pb))
@@ -2188,14 +2215,108 @@ void FFmpegExtractor::readerEntry() {
 fail:
 	ALOGI("reader thread goto end...");
 
-	/* close each stream */
-	if (mAudioStreamIdx >= 0)
-		stream_component_close(mAudioStreamIdx);
-	if (mVideoStreamIdx >= 0)
-		stream_component_close(mVideoStreamIdx);
-	if (mFormatCtx) {
-		avformat_close_input(&mFormatCtx);
+	mbreadEntryExit = true;
+
+}
+
+// play one repeatedly.
+int32_t FFmpegExtractor::resumeInit()
+{
+
+	ALOGI("resumeInit():Reader thread stop");
+	// stop read thread
+	if (!mReaderThreadStarted) {
+		ALOGD("resumeInit():Reader thread have been stopped");
+		return -1;
 	}
+	mAbortRequest = 1;
+	void *dummy;
+	pthread_join(mReaderThread, &dummy);
+	mReaderThreadStarted = false;
+
+	// initialize
+	mAbortRequest = 0;
+	mPaused       = 0;
+	mLastPaused   = 0;
+
+	mProbePkts    = 0;
+	mEOF          = false;
+
+	mVideoPktTsPrev	  = AV_NOPTS_VALUE;
+	mAudioPktTsPrev	  = AV_NOPTS_VALUE;
+
+	// start read thread
+	if (mReaderThreadStarted)
+		return 0;
+
+	pthread_attr_t attr;
+	pthread_attr_init(&attr);
+	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
+	pthread_create(&mReaderThread, &attr, ReaderWrapper, this);
+	pthread_attr_destroy(&attr);
+	mReaderThreadStarted = true;
+	ALOGD("resumeInit():Reader thread started");
+
+	return 0;
+}
+
+int32_t FFmpegExtractor::timeStampCheck(AVPacket *pkt)
+{
+	int64_t pktTS = AV_NOPTS_VALUE;
+	int64_t start_time = 0;
+	int64_t timeUs = 0;
+	int32_t ret = 0;
+
+	pktTS = pkt->pts;
+	if (pkt->stream_index == mVideoStreamIdx)
+	{
+		// use dts when AVI
+		if ( (pkt->pts == AV_NOPTS_VALUE) && (pkt->dts != AV_NOPTS_VALUE) )
+			pktTS = pkt->dts;
+		else if ( (pkt->pts == AV_NOPTS_VALUE) && (pkt->dts == AV_NOPTS_VALUE) )
+			pktTS = mVideoPktTsPrev;
+
+		// mVideoPktTsPrev Update
+		if( (mVideoPktTsPrev == AV_NOPTS_VALUE) && (pktTS != AV_NOPTS_VALUE) )
+			mVideoPktTsPrev = pktTS;
+		else if( (mVideoPktTsPrev != AV_NOPTS_VALUE) && (pktTS != AV_NOPTS_VALUE) )
+			mVideoPktTsPrev = pktTS;
+
+		start_time = mVideoStream->start_time != AV_NOPTS_VALUE ? mVideoStream->start_time : 0;
+		timeUs = (int64_t)((pktTS - start_time) * av_q2d(mVideoStream->time_base) * 1000000);
+	}
+	else if (pkt->stream_index == mAudioStreamIdx)
+	{
+		// use dts when AVI
+		if ( (pkt->pts == AV_NOPTS_VALUE) && (pkt->dts != AV_NOPTS_VALUE) )
+			pktTS = pkt->dts;
+		else if ( (pkt->pts == AV_NOPTS_VALUE) && (pkt->dts == AV_NOPTS_VALUE) )
+			pktTS = mAudioPktTsPrev;
+
+		// mAudioPktTsPrev Update
+		if( (mAudioPktTsPrev == AV_NOPTS_VALUE) && (pktTS != AV_NOPTS_VALUE) )
+			mAudioPktTsPrev = pktTS;
+		else if( (mAudioPktTsPrev != AV_NOPTS_VALUE) && (pktTS != AV_NOPTS_VALUE) )
+			mAudioPktTsPrev = pktTS;
+
+		start_time = mAudioStream->start_time != AV_NOPTS_VALUE ? mAudioStream->start_time : 0;
+		timeUs = (int64_t)((pktTS - start_time) * av_q2d(mAudioStream->time_base) * 1000000);
+	}
+
+	if ( (pkt->stream_index == mAudioStreamIdx) && (mAudioStream->duration == AV_NOPTS_VALUE) )
+	{
+		if(timeUs > 0 && mFormatCtx->duration > 0 )
+		{
+			if( timeUs  > mFormatCtx->duration)
+			{
+				ALOGV("audio time: timeUS = %lld > duration = %lld",timeUs, mFormatCtx->duration);
+				av_free_packet(pkt);
+				ret = AVERROR_EOF;
+			}
+		}
+	}
+
+	return ret;
 }
 //
 //////////////////////////////////////////////////////////////////////////////
@@ -2375,7 +2496,7 @@ const char *BetterSniffFFMPEG(const char * uri, bool &useFFMPEG, bool dumpInfo)
 	{
 		ALOGI("BetterSniffFFMPEG() : Have no video stream for playable.!!");
 	}
-#endif	
+#endif
 
 	if( dumpInfo )
 		av_dump_format(ic, 0, uri, 0);
@@ -2485,7 +2606,7 @@ const char *Better2SniffFFMPEG(const sp<DataSource> &source, bool &useFFMPEG, bo
 	{
 		ALOGI("Better2SniffFFMPEG() :Have no video stream for playable.!!");
 	}
-#endif	
+#endif
 
 	for( i=0 ; i < ic->nb_streams ;  i++ )
 	{
