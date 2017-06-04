@@ -797,8 +797,8 @@ int FFmpegExtractor::packet_queue_put(PacketQueue *q, AVPacket *pkt)
 /* return < 0 if aborted, 0 if no packet and > 0 if packet.  */
 int FFmpegExtractor::packet_queue_get(PacketQueue *q, AVPacket *pkt, int block)
 {
-	AVPacketList *pkt1;
-	int ret;
+	AVPacketList *pkt1 = NULL;
+	int ret = 0;
 
 	pthread_mutex_lock(&q->mutex);
 
@@ -1788,6 +1788,7 @@ int FFmpegExtractor::initStreams()
    	mVideoPktTsPrev	= AV_NOPTS_VALUE;
 	mAudioPktTsPrev	= AV_NOPTS_VALUE;
 	mbreadEntryExit = false;
+	mbMakeEOS = false;
 
 	av_init_packet(&flush_pkt);
 	flush_pkt.data = (uint8_t *)"FLUSH";
@@ -1917,14 +1918,7 @@ void FFmpegExtractor::stopReaderThread() {
 	pthread_join(mReaderThread, &dummy);
 	mReaderThreadStarted = false;
 
-	/* close each stream */
-	if (mAudioStreamIdx >= 0)
-		stream_component_close(mAudioStreamIdx);
-	if (mVideoStreamIdx >= 0)
-		stream_component_close(mVideoStreamIdx);
-	if (mFormatCtx) {
-		avformat_close_input(&mFormatCtx);
-	}
+	closeStream();
 
 	ALOGD("Reader thread stopped");
 }
@@ -1990,6 +1984,7 @@ void *FFmpegExtractor::SeekMonitorThread(){
 	if( !exitSeekMonitor )
 	{
 		mFormatCtx->ctx_flags |= 0x1000;
+		mbMakeEOS = true;
 		ALOGI("Forced make EOS !!!!");
 	}
 	return (void*)0xdeadface;
@@ -2007,6 +2002,7 @@ void FFmpegExtractor::readerEntry() {
 	mVideoEOSReceived = false;
 	mAudioEOSReceived = false;
 	mbreadEntryExit = false;
+	mbMakeEOS = false;
 
 	for (;;) {
 		if (mAbortRequest)
@@ -2213,10 +2209,29 @@ void FFmpegExtractor::readerEntry() {
 
 	ret = 0;
 fail:
+
+	if(mbMakeEOS)
+	{
+		closeStream();
+		mbMakeEOS = false;
+	}
+
 	ALOGI("reader thread goto end...");
 
 	mbreadEntryExit = true;
 
+}
+
+void FFmpegExtractor::closeStream()
+{
+	/* close each stream */
+	if (mAudioStreamIdx >= 0)
+		stream_component_close(mAudioStreamIdx);
+	if (mVideoStreamIdx >= 0)
+		stream_component_close(mVideoStreamIdx);
+	if (mFormatCtx) {
+		avformat_close_input(&mFormatCtx);
+	}
 }
 
 // play one repeatedly.

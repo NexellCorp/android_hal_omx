@@ -116,6 +116,7 @@ private:
     bool mbreadEntryExit;
     int64_t mVideoPktTsPrev;
     int64_t mAudioPktTsPrev;
+    bool mbMakeEOS;
 
     AVFormatContext *mFormatCtx;
     int mVideoStreamIdx;
@@ -166,6 +167,7 @@ private:
 	// 20170515 added by hcjun for readEntry Thread
 	int32_t resumeInit();
     int32_t timeStampCheck(AVPacket *pkt);
+    void closeStream();
 
     DISALLOW_EVIL_CONSTRUCTORS(FFmpegExtractor);
 };
