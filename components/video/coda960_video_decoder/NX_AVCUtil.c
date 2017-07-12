@@ -400,7 +400,7 @@ static int decode_nal_units(SPS *sps, uint8_t *buf, int buf_size)
 
 #if 1
 
-int avc_get_video_size(unsigned char *buf, int buf_size, int *width, int *height)
+int avc_get_video_size(unsigned char *buf, int buf_size, int *width, int *height, int *coded_width, int *coded_height)
 {
 	SPS sps;
 	memset(&sps, 0, sizeof(SPS));
@@ -412,6 +412,9 @@ int avc_get_video_size(unsigned char *buf, int buf_size, int *width, int *height
 	{
 		*width      = sps.mb_width * 16;
 		*height     = ( 2 - sps.frame_mbs_only_flag ) * sps.mb_height * 16;
+
+        *coded_width      = *width;
+        *coded_height     = *height;
 
 		if( sps.crop )
 		{

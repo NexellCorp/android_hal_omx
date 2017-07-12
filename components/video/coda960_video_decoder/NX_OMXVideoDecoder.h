@@ -171,6 +171,8 @@ struct tNX_VIDDEC_VIDEO_COMP_TYPE{
 	OMX_U8						tmpInputBuffer[VID_TEMP_IN_BUF_SIZE];
 
 	OMX_S32						width, height;
+	OMX_S32						dsp_width, dsp_height;
+	OMX_S32						coded_width, coded_height;
 
 	OMX_BOOL					bUseNativeBuffer;
 	OMX_BOOL					bEnableThumbNailMode;

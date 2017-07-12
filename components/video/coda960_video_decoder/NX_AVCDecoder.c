@@ -10,15 +10,17 @@
 #include "NX_DecoderUtil.h"
 
 //	From NX_AVCUtil
-int avc_get_video_size(unsigned char *buf, int buf_size, int *width, int *height);
+int avc_get_video_size(unsigned char *buf, int buf_size, int *width, int *height, int *coded_width, int *coded_height);
 
 static int AVCCheckPortReconfiguration( NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, OMX_BYTE inBuf, OMX_S32 inSize )
 {
 	if ( (inBuf != NULL) && (inSize > 0) )
 	{
-		int32_t w,h;	//	width, height, left, top, right, bottom
+		int32_t width = 0, height = 0;	//	width, height, left, top, right, bottom
 		OMX_BYTE pbyStrm = inBuf;
 		uint32_t uPreFourByte = (uint32_t)-1;
+
+		int coded_height = 0, coded_width = 0;
 
 		do
 		{
@@ -31,15 +33,41 @@ static int AVCCheckPortReconfiguration( NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, OMX
 				if ( (pbyStrm[0] & 0x1F) == 7 )
 				{
 					pbyStrm = ( uPreFourByte == 0x00000001 ) ? ( pbyStrm - 4 ) : ( pbyStrm - 3 );
-					if( avc_get_video_size( pbyStrm, inSize - (pbyStrm - inBuf), &w, &h ) )
+					if( avc_get_video_size( pbyStrm, inSize - (pbyStrm - inBuf), &width, &height, &coded_width, &coded_height ) )
 					{
-						if( pDecComp->width != w || pDecComp->height != h )
+						if( (pDecComp->width == width && pDecComp->height == height) && (OMX_TRUE == pDecComp->bEnableThumbNailMode) )
 						{
-							DbgMsg("New Video Resolution = %ld x %ld --> %d x %d\n", pDecComp->width, pDecComp->height, w, h);
+							break;
+						}
+						else if( pDecComp->width != width || pDecComp->height != height ||
+							( (coded_width > 0 && coded_height > 0) && (width != coded_width || height != coded_height) ) )
+						{
+							if( (pDecComp->width != width || pDecComp->height != height) && (width == coded_width && height == coded_height) )
+							{
+								//	Change Port Format & Resolution Information
+								DbgMsg("New Video Resolution = %ld x %ld --> %d x %d\n", pDecComp->width, pDecComp->height, width, height);
+								pDecComp->pOutputPort->stdPortDef.format.video.nFrameWidth  = pDecComp->width  = width;
+								pDecComp->pOutputPort->stdPortDef.format.video.nFrameHeight = pDecComp->height = height;
+							}
+							else if( (coded_width > 0 && coded_height > 0) && (width != coded_width || height != coded_height) )
+							{
+								if( pDecComp->width != coded_width || pDecComp->height != coded_height )
+								{
+									//	Change Port Format & Resolution Information
+									DbgMsg("New Video Resolution. = %ld x %ld --> %d x %d\n", pDecComp->width, pDecComp->height, coded_width, coded_height);
+									pDecComp->pOutputPort->stdPortDef.format.video.nFrameWidth  = pDecComp->width  = coded_width;
+									pDecComp->pOutputPort->stdPortDef.format.video.nFrameHeight = pDecComp->height = coded_height;
+								}
+								else
+								{
+									break;
+								}
+							}
 
-							//	Change Port Format & Resolution Information
-							pDecComp->pOutputPort->stdPortDef.format.video.nFrameWidth  = pDecComp->width  = w;
-							pDecComp->pOutputPort->stdPortDef.format.video.nFrameHeight = pDecComp->height = h;
+							pDecComp->dsp_width  = width;
+							pDecComp->dsp_height = height;
+							pDecComp->coded_width  = coded_width;
+							pDecComp->coded_height = coded_height;
 
 							//	Native Mode
 							if( pDecComp->bUseNativeBuffer )
@@ -48,7 +76,7 @@ static int AVCCheckPortReconfiguration( NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, OMX
 							}
 							else
 							{
-								pDecComp->pOutputPort->stdPortDef.nBufferSize = ((((w+15)>>4)<<4) * (((h+15)>>4)<<4))*3/2;
+								pDecComp->pOutputPort->stdPortDef.nBufferSize = ((((width+15)>>4)<<4) * (((height+15)>>4)<<4))*3/2;
 							}
 
 							//	Need Port Reconfiguration
@@ -126,40 +154,67 @@ int NX_DecodeAvcFrame(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_QUEUE *pInQueue, N
 	{
 		if( pInBuf->nFlags & OMX_BUFFERFLAG_CODECCONFIG )
 		{
+			int32_t bPortReconfig = 0;
 			pDecComp->bNeedSequenceData = OMX_FALSE;
 			DbgMsg("Copy Extra Data (%d)\n", inSize );
-			AVCCheckPortReconfiguration( pDecComp, inData, inSize );
+			bPortReconfig = AVCCheckPortReconfiguration( pDecComp, inData, inSize );
 			if( pDecComp->codecSpecificData )
 				free( pDecComp->codecSpecificData );
 			pDecComp->codecSpecificData = malloc(inSize);
 			memcpy( pDecComp->codecSpecificData + pDecComp->codecSpecificDataSize, inData, inSize );
 			pDecComp->codecSpecificDataSize += inSize;
 
-			if( ( inSize>4 && inData[0]==0 && inData[1]==0 && inData[2]==0 && inData[3]==1 && ((inData[4]&0x0F)==0x07) ) ||
-				( inSize>4 && inData[0]==0 && inData[1]==0 && inData[2]==1 && ((inData[3]&0x0F)==0x07) ) )
+			if(!bPortReconfig)
 			{
-				int w,h;	//	width, height, left, top, right, bottom
-				if( avc_get_video_size( pDecComp->codecSpecificData, pDecComp->codecSpecificDataSize, &w, &h ) )
+				if( ( inSize>4 && inData[0]==0 && inData[1]==0 && inData[2]==0 && inData[3]==1 && ((inData[4]&0x0F)==0x07) ) ||
+					( inSize>4 && inData[0]==0 && inData[1]==0 && inData[2]==1 && ((inData[3]&0x0F)==0x07) ) )
 				{
-					if( pDecComp->width != w || pDecComp->height != h )
+					int width = 0,height = 0,coded_width=0, coded_height=0;	//	width, height, left, top, right, bottom
+					if( avc_get_video_size( pDecComp->codecSpecificData, pDecComp->codecSpecificDataSize, &width, &height, &coded_width, &coded_height ) )
 					{
-						//	Need Port Reconfiguration
-						SendEvent( (NX_BASE_COMPNENT*)pDecComp, OMX_EventPortSettingsChanged, OMX_DirOutput, 0, NULL );
-
-						// Change Port Format
-						pDecComp->pOutputPort->stdPortDef.format.video.nFrameWidth = w;
-						pDecComp->pOutputPort->stdPortDef.format.video.nFrameHeight = h;
-
-						//	Native Mode
-						if( pDecComp->bUseNativeBuffer )
+						if( (pDecComp->width == width && pDecComp->height == height) && (OMX_TRUE == pDecComp->bEnableThumbNailMode) )
 						{
-							pDecComp->pOutputPort->stdPortDef.nBufferSize = 4096;
+							goto Exit;
 						}
-						else
+						if( pDecComp->width != width || pDecComp->height != height ||
+								( (coded_width > 0 && coded_height > 0) && (width != coded_width || height != coded_height) ) )
 						{
-							pDecComp->pOutputPort->stdPortDef.nBufferSize = ((((w+15)>>4)<<4) * (((h+15)>>4)<<4))*3/2;
+							if( pDecComp->width != width || pDecComp->height != height )
+							{
+								//	Change Port Format & Resolution Information
+								DbgMsg("New Video Resolution.. = %ld x %ld --> %d x %d\n", pDecComp->width, pDecComp->height, width, height);
+								pDecComp->pOutputPort->stdPortDef.format.video.nFrameWidth  = width;
+								pDecComp->pOutputPort->stdPortDef.format.video.nFrameHeight = height;
+							}
+							else if( (coded_width > 0 && coded_height > 0) && (width != coded_width || height != coded_height) )
+							{
+								if( pDecComp->width != coded_width || pDecComp->height != coded_height )
+								{
+									//	Change Port Format & Resolution Information
+									DbgMsg("New Video Resolution...= %ld x %ld --> %d x %d\n", pDecComp->width, pDecComp->height, coded_width, coded_height);
+									pDecComp->pOutputPort->stdPortDef.format.video.nFrameWidth  = coded_width;
+									pDecComp->pOutputPort->stdPortDef.format.video.nFrameHeight = coded_height;
+								}
+								else
+								{
+									goto Exit;
+								}
+							}
+
+							//	Need Port Reconfiguration
+							SendEvent( (NX_BASE_COMPNENT*)pDecComp, OMX_EventPortSettingsChanged, OMX_DirOutput, 0, NULL );
+
+							//	Native Mode
+							if( pDecComp->bUseNativeBuffer )
+							{
+								pDecComp->pOutputPort->stdPortDef.nBufferSize = 4096;
+							}
+							else
+							{
+								pDecComp->pOutputPort->stdPortDef.nBufferSize = ((((width+15)>>4)<<4) * (((height+15)>>4)<<4))*3/2;
+							}
+							goto Exit;
 						}
-						goto Exit;
 					}
 				}
 			}

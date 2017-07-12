@@ -304,6 +304,14 @@ static OMX_ERRORTYPE NX_VidDec_GetConfig(OMX_HANDLETYPE hComp, OMX_INDEXTYPE nCo
 			{
 				pRect->nWidth = pDecComp->pOutputPort->stdPortDef.format.video.nFrameWidth;
 				pRect->nHeight = pDecComp->pOutputPort->stdPortDef.format.video.nFrameHeight;
+
+				if( (pDecComp->dsp_width > 0 && pDecComp->dsp_height > 0) &&
+					(pRect->nWidth != (OMX_U32)pDecComp->dsp_width || pRect->nHeight != (OMX_U32)pDecComp->dsp_height) )
+				{
+					DbgMsg("Change Crop = %lu x %lu --> %ld x %ld\n", pRect->nWidth, pRect->nHeight, pDecComp->dsp_width, pDecComp->dsp_height);
+					pRect->nWidth = pDecComp->dsp_width;
+					pRect->nHeight = pDecComp->dsp_height;
+				}
 			}
 			TRACE("%s() : width(%ld), height(%ld)\n ", __func__, pRect->nWidth, pRect->nHeight );
 			break;
@@ -376,6 +384,18 @@ static OMX_ERRORTYPE NX_VidDec_GetParameter (OMX_HANDLETYPE hComp, OMX_INDEXTYPE
 			if( pPortDef->nPortIndex == 1 )
 			{
 				pPortDef->format.video.eColorFormat = HAL_PIXEL_FORMAT_YV12;
+
+				if(pDecComp->pOutputPort->stdPortDef.format.video.nFrameWidth > 0 && pDecComp->pOutputPort->stdPortDef.format.video.nFrameHeight > 0)
+				{
+					if( (pPortDef->format.video.nFrameWidth  != pDecComp->pOutputPort->stdPortDef.format.video.nFrameWidth) ||
+						(pPortDef->format.video.nFrameHeight  != pDecComp->pOutputPort->stdPortDef.format.video.nFrameHeight) )
+					{
+						DbgMsg("OutputPort Video Resolution = %ld x %ld --> %ld x %ld\n", pPortDef->format.video.nFrameWidth, pPortDef->format.video.nFrameHeight,
+										pDecComp->pOutputPort->stdPortDef.format.video.nFrameWidth, pDecComp->pOutputPort->stdPortDef.format.video.nFrameHeight);
+						pPortDef->format.video.nFrameWidth = pDecComp->pOutputPort->stdPortDef.format.video.nFrameWidth;
+						pPortDef->format.video.nFrameHeight = pDecComp->pOutputPort->stdPortDef.format.video.nFrameHeight;
+					}
+				}
 			}
 			break;
 		}
@@ -1878,6 +1898,11 @@ int InitializeCodaVpu(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, unsigned char *buf, i
 		seqIn.addNumBuffers = 4;
 		seqIn.enablePostFilter = 0;
 
+		pDecComp->dsp_width  = 0;
+		pDecComp->dsp_height = 0;
+		pDecComp->coded_width  = 0;
+		pDecComp->coded_height = 0;
+
 		iNumCurRegBuf = pDecComp->outUsableBuffers;
 
 		if ( VID_ERR_NONE != (ret = NX_VidDecParseVideoCfg( pDecComp->hVpuCodec, &seqIn, &seqOut )) )
@@ -1919,6 +1944,9 @@ int InitializeCodaVpu(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, unsigned char *buf, i
 				{
 					ALOGE("%s: Invalid Buffer!!!\n", __func__);
 				}
+
+				ALOGV("%s: handle->width = %d, handle->height = %d \n", __func__, handle->width, handle->height);
+
 				vstride = ALIGN(handle->height, 16);
 				if( ion_fd<0 )
 				{
