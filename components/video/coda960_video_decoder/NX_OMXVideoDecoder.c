@@ -1365,7 +1365,7 @@ static void FlushVideoOutputPort( NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, OMX_PTR p
 				pDecComp->curOutBuffers -- ;
 				DBG_FLUSH("pDecComp->pOutputBuffers[%2ld] = %p\n",  i, pDecComp->pOutputBuffers[i]);
 			}
-			
+
 			if( pDecComp->outBufferValidFlag[i] )
 			{
 					pDecComp->outBufferValidFlag[i] = 0;
@@ -1906,7 +1906,7 @@ int InitializeCodaVpu(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, unsigned char *buf, i
 		seqIn.width = seqOut.width;
 		seqIn.height = seqOut.height;
 		seqIn.imgPlaneNum = 3;
-		seqIn.imgFormat	= V4L2_PIX_FMT_YUV420;
+		seqIn.imgFormat	= pDecComp->vidFrameBuf[0].format;
 
 		ret = NX_V4l2DecInit( pDecComp->hVpuCodec, &seqIn );
 		pDecComp->bInitialized = OMX_TRUE;
