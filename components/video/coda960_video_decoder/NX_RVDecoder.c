@@ -194,11 +194,21 @@ int NX_DecodeRVFrame(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_QUEUE *pInQueue, NX
 		}
 		else
 		{
+			int32_t OutIdx = 0;
+			if( 0 == pDecComp->bOutBufCopy )
+			{
+				OutIdx = decOut.outImgIdx;
+			}
+			else if( 1 == pDecComp->bOutBufCopy)
+			{
+				OutIdx = GetUsableBufferIdx(pDecComp);
+			}
+
 			//	Native Window Buffer Mode
 			//	Get Output Buffer Pointer From Output Buffer Pool
-			pOutBuf = pDecComp->pOutputBuffers[decOut.outImgIdx];
+			pOutBuf = pDecComp->pOutputBuffers[OutIdx];
 
-			if( pDecComp->outBufferUseFlag[decOut.outImgIdx] == 0 )
+			if( pDecComp->outBufferUseFlag[OutIdx] == 0 )
 			{
 				OMX_TICKS timestamp;
 				OMX_U32 flag;
@@ -207,8 +217,8 @@ int NX_DecodeRVFrame(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_QUEUE *pInQueue, NX
 				ErrMsg("Unexpected Buffer Handling!!!! Goto Exit\n");
 				goto Exit;
 			}
-			pDecComp->outBufferValidFlag[decOut.outImgIdx] = 1;
-			pDecComp->outBufferUseFlag[decOut.outImgIdx] = 0;
+			pDecComp->outBufferValidFlag[OutIdx] = 1;
+			pDecComp->outBufferUseFlag[OutIdx] = 0;
 			pDecComp->curOutBuffers --;
 
 			pOutBuf->nFilledLen = sizeof(struct private_handle_t);
@@ -218,6 +228,12 @@ int NX_DecodeRVFrame(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_QUEUE *pInQueue, NX
 				pOutBuf->nFlags     = pInBuf->nFlags;
 			}
 			TRACE("nTimeStamp = %lld\n", pOutBuf->nTimeStamp/1000);
+
+			if(pDecComp->bOutBufCopy)
+			{
+				OutBufCopy( pDecComp, &decOut );
+			}
+
 			pDecComp->outFrameCount++;
 			pDecComp->pCallbacks->FillBufferDone(pDecComp->hComp, pDecComp->hComp->pApplicationPrivate, pOutBuf);
 		}

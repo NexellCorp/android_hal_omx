@@ -33,6 +33,7 @@ OMX_ERRORTYPE NX_VideoDecoder_ComponentInit (OMX_HANDLETYPE hComponent);
 
 #include <nx_deinterlace.h>
 #include <nx_graphictools.h>
+#include <libnxscaler.h>
 
 
 #define FFDEC_VID_VER_MAJOR			0
@@ -209,6 +210,9 @@ struct tNX_VIDDEC_VIDEO_COMP_TYPE{
 	OMX_BOOL					bPortReconfigure;
 	OMX_BOOL					bIsPortDisable;
 	NX_SEMAPHORE				*hPortCtrlSem;
+
+	OMX_BOOL					bOutBufCopy;
+	NX_SCALER_HANDLE			hPscaler;
 };
 
 
@@ -220,5 +224,7 @@ int openVideoCodec(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp);
 void closeVideoCodec(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp);
 void DeInterlaceFrame( NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_VID_DEC_OUT *pDecOut );
 int GetUsableBufferIdx( NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp );
+
+int32_t OutBufCopy( NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_VID_DEC_OUT *pDecOut );
 
 #endif	//	__NX_OMXVideoDecoder_h__

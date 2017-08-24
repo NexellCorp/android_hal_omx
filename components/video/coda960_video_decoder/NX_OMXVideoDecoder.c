@@ -1090,8 +1090,10 @@ static OMX_ERRORTYPE NX_VidDec_FillThisBuffer(OMX_HANDLETYPE hComp, OMX_BUFFERHE
 			{
 				if( pDecComp->outBufferValidFlag[i] )
 				{
-					if ( pDecComp->bInterlaced == 0 )
+					if ( (pDecComp->bInterlaced == 0) && (0 == pDecComp->bOutBufCopy) )
+					{
 						NX_VidDecClrDspFlag( pDecComp->hVpuCodec, NULL, i );
+					}
 					pDecComp->outBufferValidFlag[i] = 0;
 				}
 
@@ -1839,6 +1841,15 @@ void closeVideoCodec(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp)
 			pDecComp->hDeinterlace = NULL;
 		}
 
+		if(pDecComp->bOutBufCopy)
+		{
+			if(pDecComp->hPscaler)
+			{
+				NX_SCLClose(pDecComp->hPscaler);
+				pDecComp->hPscaler = 0;
+			}
+		}
+
 		if(pDecComp->bInitialized == OMX_TRUE)
 		{
 			NX_VidDecFlush( pDecComp->hVpuCodec );
@@ -1915,6 +1926,11 @@ int InitializeCodaVpu(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, unsigned char *buf, i
 		{
 			DbgMsg("[%ld] Native Buffer Mode : iNumCurRegBuf=%ld, ExtraSize = %ld, MAX_DEC_FRAME_BUFFERS = %d\n",
 				pDecComp->instanceId, iNumCurRegBuf, pDecComp->codecSpecificDataSize, MAX_DEC_FRAME_BUFFERS );
+#if OUT_BUF_COPY
+			pDecComp->bOutBufCopy = 1;
+#else
+			pDecComp->bOutBufCopy = 0;
+#endif
 
 			if( 1 == pDecComp->bInterlaced )
 			{
@@ -1976,16 +1992,21 @@ int InitializeCodaVpu(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, unsigned char *buf, i
 				pDecComp->hVidFrameBuf[i] = &pDecComp->vidFrameBuf[i];
 			}
 
-			if ( pDecComp->bInterlaced == 0 )
+			if ( (pDecComp->bInterlaced == 0) && (0 == pDecComp->bOutBufCopy) )
 			{
 				seqIn.numBuffers = iNumCurRegBuf;
 				seqIn.pMemHandle = &pDecComp->hVidFrameBuf[0];
 			}
-			else
+			else if( (0 != pDecComp->bInterlaced) || (1 == pDecComp->bOutBufCopy) )
 			{
 				seqIn.numBuffers = 0;
 				seqIn.pMemHandle = NULL;
 				seqIn.addNumBuffers = 4;
+
+				if(pDecComp->bOutBufCopy)
+				{
+					pDecComp->hPscaler = NX_SCLOpen();
+				}
 			}
 		}
 
@@ -2108,7 +2129,16 @@ int processEOS(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp)
 		ret = NX_VidDecDecodeFrame( pDecComp->hVpuCodec, &decIn, &decOut );
 		if( ret==VID_ERR_NONE && decOut.outImgIdx >= 0 && ( decOut.outImgIdx < NX_OMX_MAX_BUF ) )
 		{
-			int32_t outIdx = ( pDecComp->bInterlaced == 0 ) ? ( decOut.outImgIdx ) : ( GetUsableBufferIdx(pDecComp) );
+			int32_t outIdx = 0;
+			if( (pDecComp->bInterlaced == 0) && (0 == pDecComp->bOutBufCopy) )
+			{
+				outIdx = decOut.outImgIdx;
+			}
+			else if( (0 != pDecComp->bInterlaced) || (1 == pDecComp->bOutBufCopy) )
+			{
+				outIdx = GetUsableBufferIdx(pDecComp);
+			}
+
       		pOutBuf = pDecComp->pOutputBuffers[outIdx];
 
 			if( pDecComp->bEnableThumbNailMode == OMX_TRUE )
@@ -2138,6 +2168,11 @@ int processEOS(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp)
 					pDecComp->curOutBuffers --;
 
 					pOutBuf->nFilledLen = sizeof(struct private_handle_t);
+				}
+
+				if( (pDecComp->bInterlaced == 0) && (1 == pDecComp->bOutBufCopy) )
+				{
+					OutBufCopy( pDecComp, &decOut );
 				}
 
 				DeInterlaceFrame( pDecComp, &decOut );
@@ -2301,6 +2336,28 @@ int GetUsableBufferIdx( NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp )
 	pDecComp->outUsableBufferIdx = OutIdx;
 
 	return OutIdx;
+}
+
+int32_t OutBufCopy( NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_VID_DEC_OUT *pDecOut )
+{
+	int ret = 0;
+
+	struct private_handle_t const *handle = (struct private_handle_t const *)pDecComp->pOutputBuffers[pDecComp->outUsableBufferIdx]->pBuffer;
+	NX_MEMORY_INFO memInfo;
+	memInfo.privateDesc = handle->share_fd;
+
+	pDecComp->hVidFrameBuf[pDecComp->outUsableBufferIdx]->privateDesc[0] = (void*)&memInfo;
+
+	ret = NX_SCLScaleImage( pDecComp->hPscaler, &pDecOut->outImg, pDecComp->hVidFrameBuf[pDecComp->outUsableBufferIdx] );
+
+	if (  ret < 0 )
+	{
+		ErrMsg("CopyFrame() Fail, Handle = %x, return = %d \n", pDecComp->hPscaler, ret );
+	}
+
+	NX_VidDecClrDspFlag( pDecComp->hVpuCodec, NULL, pDecOut->outImgIdx );
+
+	return ret;
 }
 
 //

@@ -19,6 +19,8 @@ else
 LOCAL_CFLAGS += -DARM64=0
 endif
 
+LOCAL_CFLAGS += -DOUT_BUF_COPY=0
+
 NX_HW_TOP := $(TOP)/hardware/samsung_slsi/slsiap
 NX_HW_INCLUDE := $(NX_HW_TOP)/include
 NX_LINUX_TOP := $(TOP)/linux/platform/$(TARGET_CPU_VARIANT2)
@@ -62,6 +64,9 @@ LOCAL_SHARED_LIBRARIES := \
 	libcutils \
 	libnx_deinterlace \
 	libnxgraphictools
+
+LOCAL_STATIC_LIBRARIES :=	\
+	libnx_scaler
 
 LOCAL_LDFLAGS_arm += -L$(NX_LINUX_TOP)/library/lib -lnxvidrc_android
 LOCAL_LDFLAGS_arm64 += -L$(NX_LINUX_TOP)/library/lib/arm64 -lnxvidrc_android

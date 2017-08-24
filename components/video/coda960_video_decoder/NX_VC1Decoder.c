@@ -324,7 +324,15 @@ int NX_DecodeVC1Frame(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_QUEUE *pInQueue, N
 		}
 		else
 		{
-			int32_t OutIdx = ( pDecComp->bInterlaced == 0 ) ? ( decOut.outImgIdx ) : ( GetUsableBufferIdx(pDecComp) );
+			int32_t OutIdx = 0;
+			if( (pDecComp->bInterlaced == 0) && (0 == pDecComp->bOutBufCopy) )
+			{
+				OutIdx = decOut.outImgIdx;
+			}
+			else if( (pDecComp->bInterlaced != 0) || (1 == pDecComp->bOutBufCopy))
+			{
+				OutIdx = GetUsableBufferIdx(pDecComp);
+			}
 
 			if( pDecComp->isOutIdr == OMX_FALSE && decOut.picType[DECODED_FRAME] != PIC_TYPE_I &&
 				pDecComp->isOutIdr == OMX_FALSE && decOut.picType[DECODED_FRAME] != PIC_TYPE_VC1_BI )
@@ -361,6 +369,11 @@ int NX_DecodeVC1Frame(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_QUEUE *pInQueue, N
 				pOutBuf->nFlags     = pInBuf->nFlags;
 			}
 			TRACE("nTimeStamp = %lld\n", pOutBuf->nTimeStamp/1000);
+
+			if( (pDecComp->bInterlaced == 0) && (1 == pDecComp->bOutBufCopy) )
+			{
+				OutBufCopy( pDecComp, &decOut );
+			}
 
 			DeInterlaceFrame( pDecComp, &decOut );
 			pDecComp->outFrameCount++;
