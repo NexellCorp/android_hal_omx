@@ -132,11 +132,9 @@ int NX_DecodeAvcFrame(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_QUEUE *pInQueue, N
 	//	Step 1. Found Sequence Information
 	if( OMX_TRUE == pDecComp->bNeedSequenceData && pInBuf->nFlags & OMX_BUFFERFLAG_CODECCONFIG )
 	{
-		if( pInBuf->nFlags & OMX_BUFFERFLAG_CODECCONFIG )
-		{
-			pDecComp->bNeedSequenceData = OMX_FALSE;
-			DbgMsg("Copy Extra Data (%d)\n", inSize );
-			AVCCheckPortReconfiguration( pDecComp, inData, inSize );
+		pDecComp->bNeedSequenceData = OMX_FALSE;
+		DbgMsg("Copy Extra Data (%d)\n", inSize );
+		AVCCheckPortReconfiguration( pDecComp, inData, inSize );
 
 		if(pDecComp->codecSpecificDataSize > 0)
 		{
@@ -184,9 +182,7 @@ int NX_DecodeAvcFrame(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_QUEUE *pInQueue, N
 					}
 				}
 			}
-
-			goto Exit;
-		}
+		goto Exit;
 	}
 
 	// {
@@ -249,34 +245,65 @@ int NX_DecodeAvcFrame(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_QUEUE *pInQueue, N
 
 		//	Initialize VPU
 		ret = InitializeCodaVpu(pDecComp, initBuf, initBufSize );
-		free( initBuf );
 
-		if( 0 > ret )
+		if(pDecComp->bPortReconfigure)
 		{
-			ErrMsg("VPU initialized Failed!!!!\n");
+			int32_t width = 0, height = 0;
+			//	Need Port Reconfiguration
+			SendEvent( (NX_BASE_COMPNENT*)pDecComp, OMX_EventPortSettingsChanged, OMX_DirOutput, 0, NULL );
+
+			width = pDecComp->pOutputPort->stdPortDef.format.video.nFrameWidth;
+			height = pDecComp->pOutputPort->stdPortDef.format.video.nFrameHeight;
+
+			// Change Port Format
+			pDecComp->pOutputPort->stdPortDef.format.video.nFrameWidth = width;
+			pDecComp->pOutputPort->stdPortDef.format.video.nFrameHeight = height;
+
+			if(pDecComp->codecSpecificDataSize)
+			{
+				free(pDecComp->codecSpecificData);
+				pDecComp->codecSpecificDataSize = 0;
+			}
+
+			pDecComp->codecSpecificData = (unsigned char *)malloc( initBufSize );
+			pDecComp->codecSpecificDataSize = initBufSize;
+			memcpy(pDecComp->codecSpecificData, initBuf, pDecComp->codecSpecificDataSize);
+			free( initBuf );
+
+			//	Native Mode
+			if( pDecComp->bUseNativeBuffer )
+			{
+				pDecComp->pOutputPort->stdPortDef.nBufferSize = 4096;
+			}
+			else
+			{
+				pDecComp->pOutputPort->stdPortDef.nBufferSize = ((((width+15)>>4)<<4) * (((height+15)>>4)<<4))*3/2;
+			}
+
+			if( OMX_TRUE == pDecComp->bInitialized )
+			{
+				pDecComp->bInitialized = OMX_FALSE;
+				InitVideoTimeStamp(pDecComp);
+				closeVideoCodec(pDecComp);
+				openVideoCodec(pDecComp);
+			}
+			pDecComp->pOutputPort->stdPortDef.bEnabled = OMX_FALSE;
 			goto Exit;
 		}
-		else if( ret > 0  )
+
+		free( initBuf );
+
+		if( VID_ERR_INIT == ret )
 		{
-			ret = 0;
+			ErrMsg("VPU initialized Failed!!!!\n");
 			goto Exit;
 		}
 
 		pDecComp->bNeedKey = OMX_FALSE;
 		pDecComp->bInitialized = OMX_TRUE;
 
-		// Because of CTS
-#if 0
-		decIn.strmBuf = inData;
-		//decIn.strmSize = 0;
-		decIn.strmSize = initBufSize;
-		decIn.timeStamp = pInBuf->nTimeStamp;
-		decIn.eos = 0;
-		ret = NX_V4l2DecDecodeFrame( pDecComp->hVpuCodec, &decIn, &decOut );
-#else
 		ret = 0;
 		decOut.dispIdx = -1;
-#endif
 	}
 	else
 	{

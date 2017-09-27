@@ -102,6 +102,7 @@ OMX_ERRORTYPE NX_BaseSetParameter (OMX_HANDLETYPE hComp, OMX_INDEXTYPE nParamInd
 					pPortDef->format.video.nFrameWidth            = pInPortDef->format.video.nFrameWidth;
 					pPortDef->format.video.nFrameHeight           = pInPortDef->format.video.nFrameHeight;
 					pPortDef->format.video.nStride                = pInPortDef->format.video.nStride;
+					pPortDef->format.video.nSliceHeight           = pInPortDef->format.video.nSliceHeight;
 					pPortDef->format.video.xFramerate             = pInPortDef->format.video.xFramerate;
 					pPortDef->format.video.bFlagErrorConcealment  = pInPortDef->format.video.bFlagErrorConcealment;
 					pPortDef->format.video.eCompressionFormat     = pInPortDef->format.video.eCompressionFormat;

@@ -296,6 +296,15 @@ static OMX_ERRORTYPE NX_VidDec_GetConfig(OMX_HANDLETYPE hComp, OMX_INDEXTYPE nCo
 			{
 				pRect->nWidth = pDecComp->pOutputPort->stdPortDef.format.video.nFrameWidth;
 				pRect->nHeight = pDecComp->pOutputPort->stdPortDef.format.video.nFrameHeight;
+
+				if( (pDecComp->dsp_width > 0 && pDecComp->dsp_height > 0) &&
+					(pRect->nWidth != (OMX_U32)pDecComp->dsp_width || pRect->nHeight != (OMX_U32)pDecComp->dsp_height) )
+				{
+					DbgMsg("Change Crop = %lu x %lu --> %ld x %ld\n", pRect->nWidth, pRect->nHeight, pDecComp->dsp_width, pDecComp->dsp_height);
+					pRect->nWidth = pDecComp->dsp_width;
+					pRect->nHeight = pDecComp->dsp_height;
+				}
+
 			}
 			TRACE("%s() : width(%ld), height(%ld)\n ", __func__, pRect->nWidth, pRect->nHeight );
 			break;
@@ -1855,6 +1864,8 @@ int InitializeCodaVpu(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, unsigned char *buf, i
 	if( pDecComp->hVpuCodec )
 	{
 		int32_t iNumCurRegBuf, i;
+		int32_t nativeBufWidth = 0;
+		int32_t nativeBufHeight = 0;
 		NX_V4L2DEC_SEQ_IN seqIn;
 		NX_V4L2DEC_SEQ_OUT seqOut;
 		memset( &seqIn, 0, sizeof(seqIn) );
@@ -1868,7 +1879,8 @@ int InitializeCodaVpu(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, unsigned char *buf, i
 
 		if ( VID_ERR_NONE != (ret = NX_V4l2DecParseVideoCfg( pDecComp->hVpuCodec, &seqIn, &seqOut )) )
 		{
-			ALOGE("%s : NX_VidDecParseVideoCfg() is failed!!\n", __func__);
+			ALOGE("%s : NX_V4l2DecParseVideoCfg() is failed!!,(ret=%d)\n", __func__, ret);
+			ret = VID_ERR_INIT;
 			return ret;
 		}
 
@@ -1882,6 +1894,11 @@ int InitializeCodaVpu(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, unsigned char *buf, i
 			{
 				struct private_handle_t const *handle = NULL;
 				handle = (struct private_handle_t const *)pDecComp->pOutputBuffers[i]->pBuffer;
+
+				ALOGV("%s: handle->width = %d, handle->height = %d \n", __func__, handle->width, handle->height);
+				nativeBufWidth = handle->width;
+				nativeBufHeight = handle->height;
+
 				if( handle == NULL )
 				{
 					ALOGE("%s: Invalid Buffer!!!\n", __func__);
@@ -1910,6 +1927,12 @@ int InitializeCodaVpu(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, unsigned char *buf, i
 
 		ret = NX_V4l2DecInit( pDecComp->hVpuCodec, &seqIn );
 		pDecComp->bInitialized = OMX_TRUE;
+		if(VID_ERR_NONE != ret)
+		{
+			ALOGE("%s : NX_V4l2DecInit() is failed!!,(ret=%d)\n", __func__, ret);
+			ret = VID_ERR_INIT;
+			return ret;
+		}
 
 		pDecComp->minRequiredFrameBuffer = seqOut.minBuffers;
 		pDecComp->outUsableBufferIdx = -1;
@@ -1925,10 +1948,17 @@ int InitializeCodaVpu(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, unsigned char *buf, i
 			pVideoFormat->cMIMEType = "video/raw";
 			pVideoFormat->nFrameWidth = seqOut.width;
 			pVideoFormat->nFrameHeight = seqOut.height;
+			pDecComp->dsp_width = seqOut.dispInfo.dispRight;
+			pDecComp->dsp_height = seqOut.dispInfo.dispBottom;
 			if( OMX_TRUE == pDecComp->bUseNativeBuffer )
 			{
 				pVideoFormat->nStride = ALIGN(seqOut.width, 32);
 				pVideoFormat->nSliceHeight = ALIGN(seqOut.height, 16);
+
+				if( (seqOut.width != nativeBufWidth) || (seqOut.height != nativeBufHeight) )
+				{
+					pDecComp->bPortReconfigure = OMX_TRUE;
+				}
 			}
 			else
 			{

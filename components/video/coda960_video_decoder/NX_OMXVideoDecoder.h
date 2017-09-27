@@ -28,7 +28,6 @@ OMX_ERRORTYPE NX_VideoDecoder_ComponentInit (OMX_HANDLETYPE hComponent);
 
 #include <nx_video_api.h>
 
-#define VID_ERR_NONE				0
 enum {
 	//  Decoders
 	NX_AVC_DEC      = V4L2_PIX_FMT_H264,         // H.264( AVC )
@@ -138,6 +137,9 @@ enum {
 #else
 #define	DBG_PARAM(fmt,...)		do{}while(0)
 #endif
+
+#define VID_ERR_NONE		0
+#define	VID_ERR_INIT		-1
 
 struct OutBufferTimeInfo{
 	OMX_TICKS			timestamp;
