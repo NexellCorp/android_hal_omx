@@ -9,10 +9,14 @@ LOCAL_PRELINK_MODULE := false
 ANDROID_VERSION_STR := $(subst ., ,$(PLATFORM_VERSION))
 ANDROID_VERSION_MAJOR := $(firstword $(ANDROID_VERSION_STR))
 
+LOCAL_CFLAGS :=
+
 ifeq "7" "$(ANDROID_VERSION_MAJOR)"
 $( === This is NOUGAT ===)
 #LOCAL_CFLAGS += -DNOUGAT=1
 endif
+
+LOCAL_CFLAGS += -DOUT_BUF_COPY=0
 
 NX_HW_TOP := $(TOP)/hardware/nexell/s5pxx18
 NX_HW_INCLUDE := $(NX_HW_TOP)/include
@@ -43,7 +47,8 @@ LOCAL_C_INCLUDES += \
 	$(OMX_TOP)/core/inc \
 	$(OMX_TOP)/components/base \
 	$(NX_LIBRARY_TOP)/nx-video-api/src/include \
-	$(NX_LIBRARY_TOP)/nx-video-api/src
+	$(NX_LIBRARY_TOP)/nx-video-api/src \
+	$(NX_LIBRARY_TOP)/nx-scaler
 
 LOCAL_SHARED_LIBRARIES := \
 	libNX_OMX_Common \
@@ -52,10 +57,11 @@ LOCAL_SHARED_LIBRARIES := \
 	liblog \
 	libhardware \
 	libnx_video_api \
+	libnx_scaler \
 	libion \
 	libutils
 
-LOCAL_CFLAGS :=  -DPLATFORM_SDK_VERSION=$(PLATFORM_SDK_VERSION)
+LOCAL_CFLAGS +=  -DPLATFORM_SDK_VERSION=$(PLATFORM_SDK_VERSION)
 
 LOCAL_CFLAGS += -Wno-multichar -Werror -Wno-error=deprecated-declarations -Wall
 

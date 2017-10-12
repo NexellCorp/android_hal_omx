@@ -8,6 +8,7 @@
 #include <OMX_AndroidTypes.h>
 #include <system/graphics.h>
 #include <cutils/properties.h>
+#include <linux/media-bus-format.h>
 
 #include <stdbool.h>
 
@@ -381,6 +382,9 @@ static OMX_ERRORTYPE NX_VidDec_GetParameter (OMX_HANDLETYPE hComp, OMX_INDEXTYPE
 						pPortDef->format.video.nFrameWidth = pDecComp->pOutputPort->stdPortDef.format.video.nFrameWidth;
 						pPortDef->format.video.nFrameHeight = pDecComp->pOutputPort->stdPortDef.format.video.nFrameHeight;
 					}
+
+					pPortDef->format.video.nStride = pDecComp->pOutputPort->stdPortDef.format.video.nFrameWidth;
+					pPortDef->format.video.nSliceHeight = pDecComp->pOutputPort->stdPortDef.format.video.nFrameHeight;
 				}
 			}
 			break;
@@ -695,7 +699,7 @@ static OMX_ERRORTYPE NX_VidDec_SetParameter (OMX_HANDLETYPE hComp, OMX_INDEXTYPE
 
 					if( pDecComp->videoCodecId == NX_MP2_DEC )
 					{
-						pDecComp->bInterlaced = 0;
+						pDecComp->bInterlaced = OMX_FALSE;
 
 						if(pDecComp->bInterlaced)
 						{
@@ -1044,7 +1048,7 @@ static OMX_ERRORTYPE NX_VidDec_FillThisBuffer(OMX_HANDLETYPE hComp, OMX_BUFFERHE
 			{
 				if( pDecComp->outBufferValidFlag[i] )
 				{
-					if ( pDecComp->bInterlaced == 0 )
+					if ( (OMX_FALSE == pDecComp->bInterlaced) && (OMX_FALSE == pDecComp->bOutBufCopy) )
 					{
 						NX_V4l2DecClrDspFlag( pDecComp->hVpuCodec, NULL, i );
 					}
@@ -1818,8 +1822,17 @@ void closeVideoCodec(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp)
 	if( NULL != pDecComp->hVpuCodec ){
 		if ( NULL != pDecComp->hDeinterlace )
 		{
-			pDecComp->bInterlaced = 0;
+			pDecComp->bInterlaced = OMX_FALSE;
 			pDecComp->hDeinterlace = NULL;
+		}
+
+		if(pDecComp->bOutBufCopy)
+		{
+			if(pDecComp->hScaler)
+			{
+				nx_scaler_close(pDecComp->hScaler);
+				pDecComp->hScaler = 0;
+			}
 		}
 
 		if(pDecComp->bInitialized == OMX_TRUE)
@@ -1889,6 +1902,11 @@ int InitializeCodaVpu(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, unsigned char *buf, i
 			DbgMsg("[%ld] Native Buffer Mode : iNumCurRegBuf=%d, ExtraSize = %ld, MAX_FRAME_BUFFER_NUM = %d\n",
 				pDecComp->instanceId, iNumCurRegBuf, pDecComp->codecSpecificDataSize, MAX_FRAME_BUFFER_NUM );
 
+#if OUT_BUF_COPY
+			pDecComp->bOutBufCopy = OMX_TRUE;
+#else
+			pDecComp->bOutBufCopy = OMX_FALSE;
+#endif
 			//	Translate Gralloc Memory Buffer Type To Nexell Video Memory Type
 			for( i=0 ; i<iNumCurRegBuf ; i++ )
 			{
@@ -1908,22 +1926,39 @@ int InitializeCodaVpu(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, unsigned char *buf, i
 				pDecComp->hVidFrameBuf[i] = &pDecComp->vidFrameBuf[i];
 			}
 
-			if ( pDecComp->bInterlaced == 0 )
+			if ( (OMX_FALSE == pDecComp->bInterlaced) && (OMX_FALSE == pDecComp->bOutBufCopy) )
 			{
 				seqIn.numBuffers = iNumCurRegBuf;
+				seqIn.imgFormat	= pDecComp->vidFrameBuf[0].format;
 				seqIn.pMemHandle = &pDecComp->hVidFrameBuf[0];
 			}
-			else
+			else if ( OMX_TRUE == pDecComp->bInterlaced )
 			{
-				seqIn.numBuffers = 0;
-				seqIn.pMemHandle = NULL;
+				seqIn.imgFormat = V4L2_PIX_FMT_YVU420;
+				seqIn.numBuffers = iNumCurRegBuf - seqOut.minBuffers;
 			}
+			else  //OMX_TRUE == pDecComp->bOutBufCopy
+			{
+				pDecComp->hScaler = scaler_open();
+				if(pDecComp->hScaler < 0)
+				{
+					ALOGE("%s : Nscaler_open is failed!!,(hScaler=%ld)\n", __func__, pDecComp->hScaler);
+					ret = VID_ERR_INIT;
+					return ret;
+				}
+				seqIn.imgFormat = V4L2_PIX_FMT_YVU420;
+				seqIn.numBuffers = iNumCurRegBuf - seqOut.minBuffers;
+			}
+		}
+		else
+		{
+			seqIn.imgFormat = V4L2_PIX_FMT_YVU420;
+			seqIn.numBuffers = seqOut.minBuffers + 3;
 		}
 
 		seqIn.width = seqOut.width;
 		seqIn.height = seqOut.height;
 		seqIn.imgPlaneNum = 3;
-		seqIn.imgFormat	= pDecComp->vidFrameBuf[0].format;
 
 		ret = NX_V4l2DecInit( pDecComp->hVpuCodec, &seqIn );
 		pDecComp->bInitialized = OMX_TRUE;
@@ -2055,33 +2090,25 @@ int processEOS(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp)
 		ret = NX_V4l2DecDecodeFrame( pDecComp->hVpuCodec, &decIn, &decOut );
 		if( ret==VID_ERR_NONE && decOut.dispIdx >= 0 && ( decOut.dispIdx < NX_OMX_MAX_BUF ) )
 		{
-			int32_t outIdx = ( pDecComp->bInterlaced == 0 ) ? ( decOut.dispIdx ) : ( GetUsableBufferIdx(pDecComp) );
+			int32_t outIdx = 0;
+			if( (OMX_FALSE == pDecComp->bInterlaced) && (OMX_FALSE == pDecComp->bOutBufCopy) )
+			{
+				outIdx = decOut.dispIdx;
+			}
+			else // TRUE == bInterlaced,bOutBufCopy
+			{
+				outIdx = GetUsableBufferIdx(pDecComp);
+			}
+
       		pOutBuf = pDecComp->pOutputBuffers[outIdx];
 
 			if( pDecComp->bEnableThumbNailMode == OMX_TRUE )
 			{
 				//	Thumbnail Mode
-				OMX_U8 *plu = NULL;
-				OMX_U8 *pcb = NULL;
-				OMX_U8 *pcr = NULL;
-				OMX_S32 luStride = 0;
-				OMX_S32 luVStride = 0;
-				OMX_S32 cStride = 0;
-				OMX_S32 cVStride = 0;
-
 				NX_VID_MEMORY_INFO *pImg = &decOut.hImg;
 				NX_PopQueue( pDecComp->pOutputPortQueue, (void**)&pOutBuf );
 
-				luStride = ALIGN(pDecComp->width, 32);
-				luVStride = ALIGN(pDecComp->height, 16);
-				cStride = luStride/2;
-				cVStride = ALIGN(pDecComp->height/2, 16);
-				plu = (OMX_U8 *)pImg->pBuffer[0];
-				pcb = plu + luStride * luVStride;
-				pcr = pcb + cStride * cVStride;
-
-				CopySurfaceToBufferYV12( (OMX_U8*)plu, (OMX_U8*)pcb, (OMX_U8*)pcr,
-					pOutBuf->pBuffer, luStride, cStride, pDecComp->width, pDecComp->height );
+				CopySurfaceToBufferYV12( (OMX_U8 *)pImg->pBuffer[0], pOutBuf->pBuffer, pDecComp->width, pDecComp->height );
 
 				NX_V4l2DecClrDspFlag( pDecComp->hVpuCodec, NULL, decOut.dispIdx );
 
@@ -2105,7 +2132,14 @@ int processEOS(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp)
 					pOutBuf->nFilledLen = sizeof(struct private_handle_t);
 				}
 
-				DeInterlaceFrame( pDecComp, &decOut );
+				if( OMX_TRUE == pDecComp->bInterlaced )
+				{
+					DeInterlaceFrame( pDecComp, &decOut );
+				}
+				else if( OMX_TRUE == pDecComp->bOutBufCopy )
+				{
+					OutBufCopy( pDecComp, &decOut );
+				}
 			}
 
 			if( 0 != PopVideoTimeStamp(pDecComp, &pOutBuf->nTimeStamp, &pOutBuf->nFlags )  )
@@ -2184,7 +2218,7 @@ int processEOSforFlush(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp)
 void DeInterlaceFrame( NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_V4L2DEC_OUT *pDecOut )
 {
 	UNUSED_PARAM(pDecOut);
-	if ( pDecComp->bInterlaced == 0 )	return;
+	if ( OMX_FALSE == pDecComp->bInterlaced )	return;
 }
 
 int GetUsableBufferIdx( NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp )
@@ -2204,6 +2238,60 @@ int GetUsableBufferIdx( NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp )
 	pDecComp->outUsableBufferIdx = OutIdx;
 
 	return OutIdx;
+}
+
+int32_t OutBufCopy( NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_V4L2DEC_OUT *pDecOut )
+{
+	int ret = 0;
+	struct nx_scaler_context scalerCtx;
+	struct rect	crop;
+
+	memset(&scalerCtx,0,sizeof(struct nx_scaler_context));
+
+	NX_VID_MEMORY_INFO *pInImg = &pDecOut->hImg;
+	NX_VID_MEMORY_INFO *pOutImg = pDecComp->hVidFrameBuf[pDecComp->outUsableBufferIdx];
+
+	crop.x = 0;
+	crop.y = 0;
+	crop.width = pDecComp->dsp_width;
+	crop.height = pDecComp->dsp_height;
+
+	// scaler crop
+	scalerCtx.crop.x = crop.x;
+	scalerCtx.crop.y = crop.y;
+	scalerCtx.crop.width = crop.width;
+	scalerCtx.crop.height = crop.height;
+
+	// scaler src
+	scalerCtx.src_plane_num = 1;
+	scalerCtx.src_width = pInImg->width;
+	scalerCtx.src_height = pInImg->height;
+	scalerCtx.src_code = MEDIA_BUS_FMT_YUYV8_2X8;
+	scalerCtx.src_fds[0] = pInImg->sharedFd[0];
+	scalerCtx.src_stride[0] = pInImg->stride[0];
+	scalerCtx.src_stride[1] = pInImg->stride[1];
+	scalerCtx.src_stride[2] = pInImg->stride[2];
+
+	// scaler dst
+	scalerCtx.dst_plane_num = 1;
+	scalerCtx.dst_width = pOutImg->width;
+	scalerCtx.dst_height = pOutImg->height;
+	scalerCtx.dst_code = MEDIA_BUS_FMT_YUYV8_2X8;
+	scalerCtx.dst_fds[0] = pOutImg->sharedFd[0];
+	scalerCtx.dst_stride[0] = pOutImg->stride[0];
+	scalerCtx.dst_stride[1] = pOutImg->stride[1];
+	scalerCtx.dst_stride[2] = pOutImg->stride[2];
+
+	ret =  nx_scaler_run(pDecComp->hScaler, &scalerCtx);
+
+	if (  ret < 0 )
+	{
+		ErrMsg("nx_scaler_run() Fail, Handle = %lx, return = %d \n", pDecComp->hScaler, ret );
+	}
+
+	NX_V4l2DecClrDspFlag( pDecComp->hVpuCodec, NULL, pDecOut->dispIdx );
+
+	return ret;
 }
 
 //

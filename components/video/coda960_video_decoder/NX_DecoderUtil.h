@@ -72,7 +72,7 @@ int AVCFindMinimumBufferSize(OMX_VIDEO_AVCLEVELTYPE level, int width, int height
 int InitializeCodaVpu(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, unsigned char *buf, int size);
 
 //	Copy Surface YV12 to General YV12
-int CopySurfaceToBufferYV12( uint8_t *srcY, uint8_t *srcU, uint8_t *srcV, uint8_t *dst, uint32_t strideY, uint32_t strideUV, uint32_t width, uint32_t height );
+int CopySurfaceToBufferYV12( uint8_t *pSrc, uint8_t *pDst, uint32_t width, uint32_t height );
 
 
 #ifdef __cplusplus

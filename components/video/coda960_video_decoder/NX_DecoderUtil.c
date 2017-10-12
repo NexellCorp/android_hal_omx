@@ -118,47 +118,64 @@ const OMX_VIDEO_H263LEVELTYPE gstDecSupportedH263Levels[MAX_DEC_SUPPORTED_H263_L
 };
 
 
-
 //  Copy Surface YV12 to General YV12
-int CopySurfaceToBufferYV12( uint8_t *srcY, uint8_t *srcU, uint8_t *srcV, uint8_t *dst, uint32_t strideY, uint32_t strideUV, uint32_t width, uint32_t height )
+int CopySurfaceToBufferYV12( uint8_t *pSrc, uint8_t *pDst, uint32_t width, uint32_t height )
 {
     uint32_t i;
-    if( width == strideY )
+
+    OMX_U8 *pSrcY = NULL;
+    OMX_U8 *pSrcU = NULL;
+    OMX_U8 *pSrcV = NULL;
+
+    OMX_S32 luStride = 0;
+    OMX_S32 luVStride = 0;
+    OMX_S32 cStride = 0;
+    OMX_S32 cVStride = 0;
+
+    luStride = ALIGN(width, 32);
+    luVStride = ALIGN(height, 16);
+    cStride = luStride/2;
+    cVStride = ALIGN(height/2, 16);
+    pSrcY = pSrc;
+    pSrcV = pSrcY + luStride * luVStride;
+    pSrcU = pSrcV + cStride * cVStride;
+
+    if( (OMX_S32)width == luStride )
     {
-        memcpy( dst, srcY, width*height );
-        dst += width*height;
+        memcpy( pDst, pSrcY, width*height );
+        pDst += width*height;
     }
     else
     {
         for( i=0 ; i<height ; i++ )
         {
-            memcpy( dst, srcY, width );
-            srcY += strideY;
-            dst += width;
+            memcpy( pDst, pSrcY, width );
+            pSrcY += luStride;
+            pDst += width;
         }
     }
 
     width /= 2;
     height /= 2;
-    if( width == strideUV )
+    if( (OMX_S32)width == cStride )
     {
-        memcpy( dst, srcU, width*height );
-        dst += width*height;
-        memcpy( dst, srcV, width*height );
+        memcpy( pDst, pSrcU, width*height );
+        pDst += width*height;
+        memcpy( pDst, pSrcV, width*height );
     }
     else
     {
         for( i=0 ; i<height ; i++ )
         {
-            memcpy( dst, srcU, width );
-            srcU += strideUV;
-            dst += width;
+            memcpy( pDst, pSrcU, width );
+            pSrcU += cStride;
+            pDst += width;
         }
         for( i=0 ; i<height ; i++ )
         {
-            memcpy( dst, srcV, width );
-            srcV += strideUV;
-            dst += width;
+            memcpy( pDst, pSrcV, width );
+            pSrcV += cStride;
+            pDst += width;
         }
     }
     return 0;

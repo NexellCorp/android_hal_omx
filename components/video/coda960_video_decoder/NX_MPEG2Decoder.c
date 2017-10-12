@@ -210,16 +210,56 @@ int NX_DecodeMpeg2Frame(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_QUEUE *pInQueue,
 
 		//	Initialize VPU
 		ret = InitializeCodaVpu(pDecComp, initBuf, initBufSize );
-		free( initBuf );
-
-		if( 0 > ret )
+		if(pDecComp->bPortReconfigure)
 		{
-			ErrMsg("VPU initialized Failed!!!!\n");
+			int32_t width = 0, height = 0;
+			//	Need Port Reconfiguration
+			SendEvent( (NX_BASE_COMPNENT*)pDecComp, OMX_EventPortSettingsChanged, OMX_DirOutput, 0, NULL );
+
+			width = pDecComp->pOutputPort->stdPortDef.format.video.nFrameWidth;
+			height = pDecComp->pOutputPort->stdPortDef.format.video.nFrameHeight;
+
+			// Change Port Format
+			pDecComp->pOutputPort->stdPortDef.format.video.nFrameWidth = width;
+			pDecComp->pOutputPort->stdPortDef.format.video.nFrameHeight = height;
+
+			if(pDecComp->codecSpecificDataSize)
+			{
+				free(pDecComp->codecSpecificData);
+				pDecComp->codecSpecificDataSize = 0;
+			}
+
+			pDecComp->codecSpecificData = (unsigned char *)malloc( initBufSize );
+			pDecComp->codecSpecificDataSize = initBufSize;
+			memcpy(pDecComp->codecSpecificData, initBuf, pDecComp->codecSpecificDataSize);
+			free( initBuf );
+
+			//	Native Mode
+			if( pDecComp->bUseNativeBuffer )
+			{
+				pDecComp->pOutputPort->stdPortDef.nBufferSize = 4096;
+			}
+			else
+			{
+				pDecComp->pOutputPort->stdPortDef.nBufferSize = ((((width+15)>>4)<<4) * (((height+15)>>4)<<4))*3/2;
+			}
+
+			if( OMX_TRUE == pDecComp->bInitialized )
+			{
+				pDecComp->bInitialized = OMX_FALSE;
+				InitVideoTimeStamp(pDecComp);
+				closeVideoCodec(pDecComp);
+				openVideoCodec(pDecComp);
+			}
+			pDecComp->pOutputPort->stdPortDef.bEnabled = OMX_FALSE;
 			goto Exit;
 		}
-		else if( ret > 0  )
+
+		free( initBuf );
+
+		if( VID_ERR_INIT == ret )
 		{
-			ret = 0;
+			ErrMsg("VPU initialized Failed!!!!\n");
 			goto Exit;
 		}
 
@@ -287,27 +327,10 @@ int NX_DecodeMpeg2Frame(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_QUEUE *pInQueue,
 		if( OMX_TRUE == pDecComp->bEnableThumbNailMode )
 		{
 			//	Thumbnail Mode
-			OMX_U8 *plu = NULL;
-			OMX_U8 *pcb = NULL;
-			OMX_U8 *pcr = NULL;
-			OMX_S32 luStride = 0;
-			OMX_S32 luVStride = 0;
-			OMX_S32 cStride = 0;
-			OMX_S32 cVStride = 0;
-
 			NX_VID_MEMORY_INFO *pImg = &decOut.hImg;
 			NX_PopQueue( pOutQueue, (void**)&pOutBuf );
 
-			luStride = ALIGN(pDecComp->width, 32);
-			luVStride = ALIGN(pDecComp->height, 16);
-			cStride = luStride/2;
-			cVStride = ALIGN(pDecComp->height/2, 16);
-			plu = (OMX_U8 *)pImg->pBuffer[0];
-			pcb = plu + luStride * luVStride;
-			pcr = pcb + cStride * cVStride;
-
-			CopySurfaceToBufferYV12( (OMX_U8*)plu, (OMX_U8*)pcb, (OMX_U8*)pcr,
-				pOutBuf->pBuffer, luStride, cStride, pDecComp->width, pDecComp->height );
+			CopySurfaceToBufferYV12( (OMX_U8 *)pImg->pBuffer[0], pOutBuf->pBuffer, pDecComp->width, pDecComp->height );
 
 			NX_V4l2DecClrDspFlag( pDecComp->hVpuCodec, NULL, decOut.dispIdx );
 			pOutBuf->nFilledLen = pDecComp->width * pDecComp->height * 3 / 2;
@@ -322,7 +345,15 @@ int NX_DecodeMpeg2Frame(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_QUEUE *pInQueue,
 		}
 		else
 		{
-			int32_t OutIdx = ( pDecComp->bInterlaced == 0 ) ? ( decOut.dispIdx ) : ( GetUsableBufferIdx(pDecComp) );
+			int32_t OutIdx = 0;
+			if( (OMX_FALSE == pDecComp->bInterlaced) && (OMX_FALSE == pDecComp->bOutBufCopy) )
+			{
+				OutIdx = decOut.dispIdx;
+			}
+			else // OMX_TRUE == pDecComp->bInterlaced, pDecComp->bOutBufCopy
+			{
+				OutIdx = GetUsableBufferIdx(pDecComp);
+			}
 
 			//if( pDecComp->isOutIdr == OMX_FALSE && decOut.picType[DECODED_FRAME] != PIC_TYPE_I )
 			//{
@@ -356,7 +387,14 @@ int NX_DecodeMpeg2Frame(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_QUEUE *pInQueue,
 			}
 			TRACE("pOutBuf->nTimeStamp = %lld\n", pOutBuf->nTimeStamp/1000);
 
-			DeInterlaceFrame( pDecComp, &decOut );
+			if( OMX_TRUE == pDecComp->bInterlaced )
+			{
+				DeInterlaceFrame( pDecComp, &decOut );
+			}else if( OMX_TRUE == pDecComp->bOutBufCopy )
+			{
+				OutBufCopy( pDecComp, &decOut );
+			}
+
 			pDecComp->outFrameCount++;
 			pDecComp->pCallbacks->FillBufferDone(pDecComp->hComp, pDecComp->hComp->pApplicationPrivate, pOutBuf);
 		}

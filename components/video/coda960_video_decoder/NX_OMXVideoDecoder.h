@@ -25,8 +25,10 @@ OMX_ERRORTYPE NX_VideoDecoder_ComponentInit (OMX_HANDLETYPE hComponent);
 
 #include <linux/videodev2.h>
 #include <linux/videodev2_nxp_media.h>
+#include <linux/media-bus-format.h>
 
 #include <nx_video_api.h>
+#include <nx-scaler.h>
 
 enum {
 	//  Decoders
@@ -231,7 +233,6 @@ struct tNX_VIDDEC_VIDEO_COMP_TYPE{
 
 	OMX_BOOL					bInterlaced;		// 0 : Progressive, 1 : SW_Interlaced, 2 : 3D_Interlaced
 	void						*hDeinterlace;
-	void						*hScaler;
 
 	OMX_BOOL					bPortReconfigure;
 	OMX_BOOL					bIsPortDisable;
@@ -239,6 +240,9 @@ struct tNX_VIDDEC_VIDEO_COMP_TYPE{
 
 	OMX_S32						inFlushFrameCount;
 	OMX_BOOL					bIsFlush;
+
+	OMX_S32						hScaler;
+	OMX_BOOL					bOutBufCopy;
 };
 
 
@@ -250,5 +254,6 @@ int openVideoCodec(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp);
 void closeVideoCodec(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp);
 void DeInterlaceFrame( NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_V4L2DEC_OUT *pDecOut );
 int GetUsableBufferIdx( NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp );
+int32_t OutBufCopy( NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_V4L2DEC_OUT *pDecOut );
 
 #endif	//	__NX_OMXVideoDecoder_h__

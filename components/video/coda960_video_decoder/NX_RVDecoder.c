@@ -147,27 +147,10 @@ int NX_DecodeRVFrame(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_QUEUE *pInQueue, NX
 		if( OMX_TRUE == pDecComp->bEnableThumbNailMode )
 		{
 			//	Thumbnail Mode
-			OMX_U8 *plu = NULL;
-			OMX_U8 *pcb = NULL;
-			OMX_U8 *pcr = NULL;
-			OMX_S32 luStride = 0;
-			OMX_S32 luVStride = 0;
-			OMX_S32 cStride = 0;
-			OMX_S32 cVStride = 0;
-
 			NX_VID_MEMORY_INFO *pImg = &decOut.hImg;
 			NX_PopQueue( pOutQueue, (void**)&pOutBuf );
 
-			luStride = ALIGN(pDecComp->width, 32);
-			luVStride = ALIGN(pDecComp->height, 16);
-			cStride = luStride/2;
-			cVStride = ALIGN(pDecComp->height/2, 16);
-			plu = (OMX_U8 *)pImg->pBuffer[0];
-			pcb = plu + luStride * luVStride;
-			pcr = pcb + cStride * cVStride;
-
-			CopySurfaceToBufferYV12( (OMX_U8*)plu, (OMX_U8*)pcb, (OMX_U8*)pcr,
-				pOutBuf->pBuffer, luStride, cStride, pDecComp->width, pDecComp->height );
+			CopySurfaceToBufferYV12( (OMX_U8 *)pImg->pBuffer[0], pOutBuf->pBuffer, pDecComp->width, pDecComp->height );
 
 			NX_V4l2DecClrDspFlag( pDecComp->hVpuCodec, NULL, decOut.dispIdx );
 			pOutBuf->nFilledLen = pDecComp->width * pDecComp->height * 3 / 2;
@@ -182,11 +165,22 @@ int NX_DecodeRVFrame(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_QUEUE *pInQueue, NX
 		}
 		else
 		{
+			int32_t OutIdx = 0;
+			if( (OMX_FALSE == pDecComp->bInterlaced) && (OMX_FALSE == pDecComp->bOutBufCopy) )
+			{
+				OutIdx = decOut.dispIdx;
+			}
+			else // OMX_TRUE == pDecComp->bInterlaced, pDecComp->bOutBufCopy
+			{
+				OutIdx = GetUsableBufferIdx(pDecComp);
+			}
+			pDecComp->isOutIdr = OMX_TRUE;
+
 			//	Native Window Buffer Mode
 			//	Get Output Buffer Pointer From Output Buffer Pool
-			pOutBuf = pDecComp->pOutputBuffers[decOut.dispIdx];
+			pOutBuf = pDecComp->pOutputBuffers[OutIdx];
 
-			if( pDecComp->outBufferUseFlag[decOut.dispIdx] == 0 )
+			if( pDecComp->outBufferUseFlag[OutIdx] == 0 )
 			{
 				OMX_TICKS timestamp;
 				OMX_U32 flag;
@@ -195,8 +189,8 @@ int NX_DecodeRVFrame(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_QUEUE *pInQueue, NX
 				ErrMsg("Unexpected Buffer Handling!!!! Goto Exit\n");
 				goto Exit;
 			}
-			pDecComp->outBufferValidFlag[decOut.dispIdx] = 1;
-			pDecComp->outBufferUseFlag[decOut.dispIdx] = 0;
+			pDecComp->outBufferValidFlag[OutIdx] = 1;
+			pDecComp->outBufferUseFlag[OutIdx] = 0;
 			pDecComp->curOutBuffers --;
 
 			pOutBuf->nFilledLen = sizeof(struct private_handle_t);
@@ -206,6 +200,12 @@ int NX_DecodeRVFrame(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_QUEUE *pInQueue, NX
 				pOutBuf->nFlags     = pInBuf->nFlags;
 			}
 			TRACE("nTimeStamp = %lld\n", pOutBuf->nTimeStamp/1000);
+
+			if( OMX_TRUE == pDecComp->bOutBufCopy )
+			{
+				OutBufCopy( pDecComp, &decOut );
+			}
+
 			pDecComp->outFrameCount++;
 			pDecComp->pCallbacks->FillBufferDone(pDecComp->hComp, pDecComp->hComp->pApplicationPrivate, pOutBuf);
 		}

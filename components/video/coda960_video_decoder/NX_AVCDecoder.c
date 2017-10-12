@@ -361,27 +361,10 @@ int NX_DecodeAvcFrame(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_QUEUE *pInQueue, N
 		if( OMX_TRUE == pDecComp->bEnableThumbNailMode )
 		{
 			//	Thumbnail Mode
-			OMX_U8 *plu = NULL;
-			OMX_U8 *pcb = NULL;
-			OMX_U8 *pcr = NULL;
-			OMX_S32 luStride = 0;
-			OMX_S32 luVStride = 0;
-			OMX_S32 cStride = 0;
-			OMX_S32 cVStride = 0;
-
 			NX_VID_MEMORY_INFO *pImg = &decOut.hImg;
 			NX_PopQueue( pOutQueue, (void**)&pOutBuf );
 
-			luStride = ALIGN(pDecComp->width, 32);
-			luVStride = ALIGN(pDecComp->height, 16);
-			cStride = luStride/2;
-			cVStride = ALIGN(pDecComp->height/2, 16);
-			plu = (OMX_U8 *)pImg->pBuffer[0];
-			pcb = plu + luStride * luVStride;
-			pcr = pcb + cStride * cVStride;
-
-			CopySurfaceToBufferYV12( (OMX_U8*)plu, (OMX_U8*)pcb, (OMX_U8*)pcr,
-				pOutBuf->pBuffer, luStride, cStride, pDecComp->width, pDecComp->height );
+			CopySurfaceToBufferYV12( (OMX_U8 *)pImg->pBuffer[0], pOutBuf->pBuffer, pDecComp->width, pDecComp->height );
 
 			NX_V4l2DecClrDspFlag( pDecComp->hVpuCodec, NULL, decOut.dispIdx );
 			pOutBuf->nFilledLen = pDecComp->width * pDecComp->height * 3 / 2;
@@ -399,27 +382,21 @@ int NX_DecodeAvcFrame(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_QUEUE *pInQueue, N
 		}
 		else
 		{
-			int32_t OutIdx = ( pDecComp->bInterlaced == 0 ) ? ( decOut.dispIdx ) : ( GetUsableBufferIdx(pDecComp) );
-			// if( pDecComp->isOutIdr == OMX_FALSE && decOut.picType[DECODED_FRAME] != PIC_TYPE_I )
-			// {
-			// 	OMX_TICKS timestamp;
-			// 	OMX_U32 flag;
-			// 	PopVideoTimeStamp(pDecComp, &timestamp, &flag );
-			// 	NX_V4l2DecClrDspFlag( pDecComp->hVpuCodec, NULL, decOut.dispIdx );
-			// 	goto Exit;
-			// }
+			int32_t OutIdx = 0;
+			if( (OMX_FALSE == pDecComp->bInterlaced) && (OMX_FALSE == pDecComp->bOutBufCopy) )
+			{
+				OutIdx = decOut.dispIdx;
+			}
+			else // OMX_TRUE == pDecComp->bInterlaced, pDecComp->bOutBufCopy
+			{
+				OutIdx = GetUsableBufferIdx(pDecComp);
+			}
+
 			pDecComp->isOutIdr = OMX_TRUE;
 
 			//	Native Window Buffer Mode
 			//	Get Output Buffer Pointer From Output Buffer Pool
 			pOutBuf = pDecComp->pOutputBuffers[OutIdx];
-			// if( OMX_TRUE == pDecComp->bMetaDataInBuffers )
-			// {
-			// 	uint32_t *pOutBufType = pDecComp->pOutputBuffers[decOut.dispIdx];
-			// 	*pOutBufType = kMetadataBufferTypeGrallocSource;
-			// 	pOutBuf = (OMX_BUFFERHEADERTYPE*)(((unsigned char*)pDecComp->pOutputBuffers[decOut.dispIdx])+4);
-			// 	DbgMsg("~~~~~~~~~~~~~~~~~~~ Outbuffer Data Type ~~~~~~~~~~~~~~~~~~~~~");
-			// }
 
 			if( pDecComp->outBufferUseFlag[OutIdx] == 0 )
 			{
@@ -447,7 +424,14 @@ int NX_DecodeAvcFrame(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_QUEUE *pInQueue, N
 			pOutBuf->nFlags = OMX_BUFFERFLAG_ENDOFFRAME;
 			TRACE("Native Mode : pOutBuf->nTimeStamp = %lld\n", pOutBuf->nTimeStamp/1000);
 
-			DeInterlaceFrame( pDecComp, &decOut );
+			if( OMX_TRUE == pDecComp->bInterlaced )
+			{
+				DeInterlaceFrame( pDecComp, &decOut );
+			}else if( OMX_TRUE == pDecComp->bOutBufCopy )
+			{
+				OutBufCopy( pDecComp, &decOut );
+			}
+
 			pDecComp->outFrameCount++;
 			pDecComp->pCallbacks->FillBufferDone(pDecComp->hComp, pDecComp->hComp->pApplicationPrivate, pOutBuf);
 		}
