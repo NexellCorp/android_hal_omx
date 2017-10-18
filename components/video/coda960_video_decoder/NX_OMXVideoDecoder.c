@@ -2080,7 +2080,7 @@ int processEOS(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp)
 	NX_V4L2DEC_IN decIn;
 	NX_V4L2DEC_OUT decOut;
 
-	if( pDecComp->hVpuCodec )
+	if( pDecComp->hVpuCodec && pDecComp->bInitialized )
 	{
 		decIn.strmBuf = 0;
 		decIn.strmSize = 0;
@@ -2192,7 +2192,7 @@ int processEOS(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp)
 
 int processEOSforFlush(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp)
 {
-	if( pDecComp->hVpuCodec )
+	if( pDecComp->hVpuCodec && pDecComp->bInitialized )
 	{
 		int32_t ret;
 		NX_V4L2DEC_IN decIn;
