@@ -156,6 +156,7 @@ struct tNX_VIDDEC_VIDEO_COMP_TYPE{
 	/*					Buffer Thread							*/
 	pthread_t					hBufThread;
 	pthread_mutex_t				hBufMutex;
+	pthread_mutex_t				hStateMutex;
 	NX_THREAD_CMD				eCmdBufThread;
 
 	/*				Video Format				*/

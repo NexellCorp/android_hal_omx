@@ -104,6 +104,12 @@ typedef struct _NX_BASE_COMPNENT NX_BASE_COMPNENT;
 	OMX_BUFFERHEADERTYPE	*pOutputBuffers[NX_OMX_MAX_BUF];\
 	/*	Buffer allocation semaphore ( Semaphore )	*/		\
 	NX_SEMAPHORE			*hBufAllocSem;					\
+	NX_SEMAPHORE			*hBufFreeSem;					\
+	OMX_BOOL				bBufAllocPend[NX_OMX_MAX_PORTS];\
+	OMX_BOOL				bBufFreePend[NX_OMX_MAX_PORTS];	\
+/*	OMX_BOOL				bAllocBufError[NX_OMX_MAX_PORTS]; */ \
+	OMX_BOOL 				bAbendState;					\
+/*	OMX_BOOL 				bDeInitState;					*/ \
 	/*	Buffer thread control semaphore ( Mutex )	*/		\
 	NX_SEMAPHORE			*hBufCtrlSem;					\
 	/*	Buffer status change semaphore ( Event )	*/		\

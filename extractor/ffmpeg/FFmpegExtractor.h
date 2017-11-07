@@ -46,6 +46,7 @@ typedef struct PacketQueue {
     int nb_packets;
     int size;
     int abort_request;
+    bool bPend;
     pthread_mutex_t mutex;
     pthread_cond_t cond;
 } PacketQueue;

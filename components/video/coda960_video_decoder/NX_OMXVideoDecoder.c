@@ -163,6 +163,7 @@ OMX_ERRORTYPE NX_VideoDecoder_ComponentInit (OMX_HANDLETYPE hComponent)
 	//	Buffer
 	pthread_mutex_init( &pDecComp->hBufMutex, NULL );
 	pDecComp->hBufAllocSem = NX_CreateSem(0, 16);
+	pDecComp->hBufFreeSem = NX_CreateSem(0, 16);
 
 	pDecComp->hVpuCodec = NULL;		//	Initialize Video Process Unit Handler
 	pDecComp->videoCodecId = -1;
@@ -220,10 +221,36 @@ static OMX_ERRORTYPE NX_VidDec_ComponentDeInit(OMX_HANDLETYPE hComponent)
 	if( NULL == pComp->pComponentPrivate )
 		return OMX_ErrorNone;
 
+	if( (OMX_StateLoaded == pDecComp->eCurState && OMX_StateIdle == pDecComp->eNewState) ||
+		(OMX_StateIdle == pDecComp->eCurState && OMX_StateLoaded == pDecComp->eNewState) )
+	{
+		pDecComp->bAbendState = OMX_TRUE;
+		DbgMsg("%s(): Waring. bAbendState: True\n", __func__);
+	}
+	
 	// Destroy command thread
 	pDecComp->eCmdThreadCmd = NX_THREAD_CMD_EXIT;
 	NX_PostSem( pDecComp->hSemCmdWait );
 	NX_PostSem( pDecComp->hSemCmd );
+
+	// add hcjun(2017_10_25)
+	for( i=0 ; i<pDecComp->nNumPort ; i++ )
+	{
+		if(pDecComp->bBufAllocPend[i] == OMX_TRUE)
+		{
+			NX_PostSem(pDecComp->hBufAllocSem);
+			DbgMsg("%s(): Waring. BufAllocPend: Port(%lu)\n", __func__,i );
+		}
+	}
+	for( i=0 ; i<pDecComp->nNumPort ; i++ )
+	{
+		if(pDecComp->bBufFreePend[i] == OMX_TRUE)
+		{
+			NX_PostSem(pDecComp->hBufFreeSem);
+			DbgMsg("%s(): Waring. bBufFreePend: Port(%lu)\n", __func__,i );
+		}
+	}
+
 	pthread_join( pDecComp->hCmdThread, NULL );
 	NX_DeinitQueue( &pDecComp->cmdQueue );
 	//	Destroy Semaphore
@@ -247,6 +274,7 @@ static OMX_ERRORTYPE NX_VidDec_ComponentDeInit(OMX_HANDLETYPE hComponent)
 	//	Buffer
 	pthread_mutex_destroy( &pDecComp->hBufMutex );
 	NX_DestroySem(pDecComp->hBufAllocSem);
+	NX_DestroySem(pDecComp->hBufFreeSem);
 
 	if( pDecComp->codecSpecificData )
 	{
@@ -838,6 +866,18 @@ static OMX_ERRORTYPE NX_VidDec_UseBuffer (OMX_HANDLETYPE hComponent, OMX_BUFFERH
 		pPortBuf = pDecComp->pOutputBuffers;
 	}
 
+	// add hcjun(2017_10_25)
+	// If an error occurs during FreeBuffer(buffer free), it is pending.
+	for( i=0 ; i<pDecComp->nNumPort ; i++ )
+	{
+		if(pDecComp->bBufFreePend[i] == OMX_TRUE)
+		{
+			NX_PostSem(pDecComp->hBufFreeSem);
+			pDecComp->bBufFreePend[i] = OMX_FALSE;
+			DbgMsg("%s(): Waring. bBufFreePend: Port(%lu)\n", __func__,i );
+		}
+	}
+
 	DbgBuffer( "%s() : pPort->stdPortDef.nBufferSize = %ld, nSizeBytes = %ld\n", __FUNCTION__, pPort->stdPortDef.nBufferSize, nSizeBytes);
 
 	if( pDecComp->bUseNativeBuffer == OMX_FALSE && pPort->stdPortDef.nBufferSize > nSizeBytes )
@@ -947,7 +987,7 @@ static OMX_ERRORTYPE NX_VidDec_FreeBuffer (OMX_HANDLETYPE hComponent, OMX_U32 nP
 	OMX_BUFFERHEADERTYPE **pPortBuf = NULL;
 	OMX_U32 i=0;
 
-	DbgBuffer("[%ld] %s() IN\n", pDecComp->instanceId, __FUNCTION__ );
+	DbgBuffer("[%ld] %s(), Port(%lu) IN\n", pDecComp->instanceId, __FUNCTION__, nPortIndex );
 
 	if( nPortIndex >= pDecComp->nNumPort )
 	{
@@ -957,6 +997,18 @@ static OMX_ERRORTYPE NX_VidDec_FreeBuffer (OMX_HANDLETYPE hComponent, OMX_U32 nP
 	if( OMX_StateLoaded != pDecComp->eNewState && OMX_StateExecuting != pDecComp->eNewState )
 	{
 		SendEvent( (NX_BASE_COMPNENT*)pDecComp, OMX_EventError, OMX_ErrorPortUnpopulated, nPortIndex, NULL );
+	}
+
+	// add hcjun(2017_10_25)
+	// If an error occurs during UseBuffer(buffer allocation), it is pending.
+	for( i=0 ; i<pDecComp->nNumPort ; i++ )
+	{
+		if(pDecComp->bBufAllocPend[i] == OMX_TRUE)
+		{
+			NX_PostSem(pDecComp->hBufAllocSem);
+			pDecComp->bBufAllocPend[i] = OMX_FALSE;			
+			DbgMsg("%s(): Waring. BufAllocPend: Port(%lu)\n", __func__,i );
+		}
 	}
 
 	if( IN_PORT == nPortIndex ){
@@ -981,9 +1033,12 @@ static OMX_ERRORTYPE NX_VidDec_FreeBuffer (OMX_HANDLETYPE hComponent, OMX_U32 nP
 			NxFree(pPortBuf[i]);
 			pPortBuf[i] = NULL;
 			pPort->nAllocatedBuf --;
+
+			DbgBuffer( "[%ld] %s() : pPort->nAllocatedBuf(%ld), pBuffer(0x%08x)\n",
+					pDecComp->instanceId, __FUNCTION__, pPort->nAllocatedBuf, (unsigned int)pBuffer);
 			if( 0 == pPort->nAllocatedBuf ){
 				pPort->stdPortDef.bPopulated = OMX_FALSE;
-				NX_PostSem(pDecComp->hBufAllocSem);
+				NX_PostSem(pDecComp->hBufFreeSem);
 			}
 
 			if(pPort->nAllocatedBuf == 0)
@@ -1093,6 +1148,7 @@ static OMX_ERRORTYPE NX_VidDec_StateTransition( NX_VIDDEC_VIDEO_COMP_TYPE *pDecC
 	OMX_PARAM_PORTDEFINITIONTYPE *pPort = NULL;
 	NX_QUEUE *pQueue = NULL;
 	OMX_BUFFERHEADERTYPE *pBufHdr = NULL;
+	OMX_BOOL bAbendState = OMX_FALSE;
 
 	DBG_STATE( "%s() In : eCurState %d -> eNewState %d \n", __FUNCTION__, eCurState, eNewState );
 
@@ -1119,7 +1175,21 @@ static OMX_ERRORTYPE NX_VidDec_StateTransition( NX_VIDDEC_VIDEO_COMP_TYPE *pDecC
 						//	Buffer Allocation must be done in the process of migrating to Loaded Idle.
 						//	On Android, however, this process does not seem to go through.
 						//	If it is originally standardized, it must wait until the buffer allocation is done in this process.
+						pDecComp->bBufAllocPend[i] = OMX_TRUE;
+						DbgBuffer( "%s() NX_PendSem(pDecComp->hBufAllocSem) (port(%lu) +++\n", __FUNCTION__, i);
 						NX_PendSem(pDecComp->hBufAllocSem);
+						DbgBuffer( "%s() NX_PendSem(pDecComp->hBufAllocSem) (port(%lu) ---\n", __FUNCTION__, i);
+						pDecComp->bBufAllocPend[i] = OMX_FALSE;
+
+						bAbendState = pDecComp->bAbendState;
+
+						if( OMX_TRUE == bAbendState )
+						{
+							pDecComp->eCurState = eNewState;
+							DbgBuffer( "%s() Waring: bAbendState == TRUE\n", __FUNCTION__);
+							return eError;
+						}
+
 					}
 					//
 					//	TODO : Need exit check.
@@ -1175,7 +1245,21 @@ static OMX_ERRORTYPE NX_VidDec_StateTransition( NX_VIDDEC_VIDEO_COMP_TYPE *pDecC
 				for( i=0 ; i<pDecComp->nNumPort ; i++ ){
 					pPort = (OMX_PARAM_PORTDEFINITIONTYPE *)pDecComp->pPort[i];
 					if( OMX_TRUE == pPort->bEnabled ){
-						NX_PendSem(pDecComp->hBufAllocSem);
+						pDecComp->bBufFreePend[i] = OMX_TRUE;
+						DbgBuffer( "%s() NX_PendSem(pDecComp->hBufFreeSem) (port(%lu) +++\n", __FUNCTION__, i);
+						NX_PendSem(pDecComp->hBufFreeSem);
+						DbgBuffer( "%s() NX_PendSem(pDecComp->hBufFreeSem) (port(%lu) ---\n", __FUNCTION__, i);
+						pDecComp->bBufFreePend[i] = OMX_FALSE;
+
+						bAbendState = pDecComp->bAbendState;
+
+						if( OMX_TRUE == bAbendState )
+						{
+							pDecComp->eCurState = eNewState;
+							DbgBuffer( "%s() Waring: bAbendState == TRUE\n", __FUNCTION__);
+							return eError;
+						}
+
 					}
 					//
 					//	TODO : Need exit check.
@@ -1992,6 +2076,8 @@ int InitializeCodaVpu(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, unsigned char *buf, i
 
 				if( (seqOut.width != nativeBufWidth) || (seqOut.height != nativeBufHeight) )
 				{
+					DbgMsg("[%ld] <<< seqOut.width(%d) != nativeBufWidth(%d), seqOut.height(%d) != nativeBufHeight(%d)\n",
+						pDecComp->instanceId, seqOut.width, nativeBufWidth, seqOut.height, nativeBufHeight);
 					pDecComp->bPortReconfigure = OMX_TRUE;
 				}
 			}

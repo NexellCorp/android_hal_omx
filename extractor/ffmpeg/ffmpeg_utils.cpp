@@ -148,6 +148,8 @@ void nx_av_log_callback(void* ptr, int level, const char* fmt, va_list vl)
 	int print_prefix = 1;
 	char line[1024];
 
+	return;
+
 	if (level > av_log_get_level())
 		return;
 	av_log_format_line(ptr, level, fmt, vl, line, sizeof(line), &print_prefix);

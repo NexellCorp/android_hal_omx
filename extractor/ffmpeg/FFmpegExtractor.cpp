@@ -741,6 +741,7 @@ void FFmpegExtractor::packet_queue_flush(PacketQueue *q)
 	q->first_pkt = NULL;
 	q->nb_packets = 0;
 	q->size = 0;
+	q->bPend = false;
 	pthread_mutex_unlock(&q->mutex);
 }
 
@@ -822,7 +823,15 @@ int FFmpegExtractor::packet_queue_get(PacketQueue *q, AVPacket *pkt, int block)
 			ret = 0;
 			break;
 		} else {
+			if(mbreadEntryExit == true)
+			{
+				ALOGI("packet_queue_get() mbreadEntryExit \n");	
+				ret = -1;
+				break;
+			}
+			q->bPend = true;
 			pthread_cond_wait(&q->cond, &q->mutex);
+			q->bPend = false;
 		}
 	}
 	pthread_mutex_unlock(&q->mutex);
@@ -1725,16 +1734,16 @@ int av_find_best_audio_stream(AVFormatContext *ic,
 		switch(avctx->codec_id)
 		{
 			case AV_CODEC_ID_AAC:
-			case AV_CODEC_ID_AC3:
+//			case AV_CODEC_ID_AC3:
 			case AV_CODEC_ID_MP1:
 			case AV_CODEC_ID_MP2:
-			case AV_CODEC_ID_WMAV1:
-			case AV_CODEC_ID_WMAV2:
-			case AV_CODEC_ID_WMAPRO:
-			case AV_CODEC_ID_WMALOSSLESS:
-			case AV_CODEC_ID_COOK:
-			case AV_CODEC_ID_APE:
-			case AV_CODEC_ID_DTS:
+//			case AV_CODEC_ID_WMAV1:
+//			case AV_CODEC_ID_WMAV2:
+//			case AV_CODEC_ID_WMAPRO:
+//			case AV_CODEC_ID_WMALOSSLESS:
+//			case AV_CODEC_ID_COOK:
+//			case AV_CODEC_ID_APE:
+//			case AV_CODEC_ID_DTS:
 			case AV_CODEC_ID_MP3:
 			case AV_CODEC_ID_FLAC:
 			case AV_CODEC_ID_VORBIS:
@@ -2221,7 +2230,21 @@ fail:
 	ALOGI("reader thread goto end...");
 
 	mbreadEntryExit = true;
+	if (mAudioStreamIdx >= 0)
+	{
+		if(true == mAudioQ.bPend)
+		{
+			pthread_cond_signal(&mAudioQ.cond);
+		}
+	}
 
+	if (mVideoStreamIdx >= 0)
+	{
+		if(true == mVideoQ.bPend)
+		{
+			pthread_cond_signal(&mVideoQ.cond);
+		}
+	}
 }
 
 void FFmpegExtractor::closeStream()
@@ -2363,20 +2386,20 @@ static int get_num_supported_video_tracks(AVFormatContext *avfctx)
 		{
 			case AV_CODEC_ID_H264:
 			case AV_CODEC_ID_MPEG4:
-			case AV_CODEC_ID_FLV1:
+//			case AV_CODEC_ID_FLV1:
 			case AV_CODEC_ID_MSMPEG4V3:
 			case AV_CODEC_ID_H263:
 			case AV_CODEC_ID_H263P:
 			case AV_CODEC_ID_H263I:
 			case AV_CODEC_ID_MPEG1VIDEO:
 			case AV_CODEC_ID_MPEG2VIDEO:
-			case AV_CODEC_ID_WMV3:
-			case AV_CODEC_ID_VC1:
+//			case AV_CODEC_ID_WMV3:
+//			case AV_CODEC_ID_VC1:
 			case AV_CODEC_ID_VP8:
 			case AV_CODEC_ID_VP9:
-			case AV_CODEC_ID_RV30:
-			case AV_CODEC_ID_RV40:
-			case AV_CODEC_ID_HEVC:
+//			case AV_CODEC_ID_RV30:
+//			case AV_CODEC_ID_RV40:
+//			case AV_CODEC_ID_HEVC:
 				count ++;
 				break;
 			default:
