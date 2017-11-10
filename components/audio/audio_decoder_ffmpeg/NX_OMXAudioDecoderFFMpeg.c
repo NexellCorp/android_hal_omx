@@ -10,9 +10,9 @@
 #include <system/graphics.h>
 
 #define	DEBUG_ANDROID	1
-#define	DEBUG_BUFFER	1
-#define	DEBUG_FUNC		1
-#define	TRACE_ON		1
+#define	DEBUG_BUFFER	0
+#define	DEBUG_FUNC		0
+#define	TRACE_ON		0
 
 #if DEBUG_BUFFER
 #define	DbgBuffer(fmt,...)	DbgMsg(fmt, ##__VA_ARGS__)
