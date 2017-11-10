@@ -253,6 +253,18 @@ OMX_ERRORTYPE NX_BaseAllocateBuffer (OMX_HANDLETYPE hComponent, OMX_BUFFERHEADER
 		pPortBuf = pComp->pOutputBuffers;
 	}
 
+	// add hcjun(2017_11_09)
+	// If an error occurs during FreeBuffer(buffer free), it is pending.
+	for( i=0 ; i<pComp->nNumPort ; i++ )
+	{
+		if(pComp->bBufFreePend[i] == OMX_TRUE)
+		{
+			NX_PostSem(pComp->hBufFreeSem);
+			pComp->bBufFreePend[i] = OMX_FALSE;
+			DbgMsg("%s(): Waring. bBufFreePend: Port(%lu)\n", __func__,i );
+		}
+	}	
+
 	if( pPort->stdPortDef.nBufferSize > nSizeBytes )
 		return OMX_ErrorBadParameter;
 
@@ -307,6 +319,18 @@ OMX_ERRORTYPE NX_BaseFreeBuffer (OMX_HANDLETYPE hComponent, OMX_U32 nPortIndex, 
 
 	if( OMX_StateLoaded != pComp->eNewState )
 		return OMX_ErrorIncorrectStateTransition;
+
+	// add hcjun(2017_11_09)
+	// If an error occurs during AllocBuffer(buffer allocation), it is pending.
+	for( i=0 ; i<pComp->nNumPort ; i++ )
+	{
+		if(pComp->bBufAllocPend[i] == OMX_TRUE)
+		{
+			NX_PostSem(pComp->hBufAllocSem);
+			pComp->bBufAllocPend[i] = OMX_FALSE;			
+			DbgMsg("%s(): Waring. BufAllocPend: Port(%lu)\n", __func__,i );
+		}
+	}
 
 	if( 0 == nPortIndex ){
 		pPort = pComp->pInputPort;

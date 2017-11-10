@@ -10,9 +10,9 @@
 #include <system/graphics.h>
 
 #define	DEBUG_ANDROID	1
-#define	DEBUG_BUFFER	0
-#define	DEBUG_FUNC		0
-#define	TRACE_ON		0
+#define	DEBUG_BUFFER	1
+#define	DEBUG_FUNC		1
+#define	TRACE_ON		1
 
 #if DEBUG_BUFFER
 #define	DbgBuffer(fmt,...)	DbgMsg(fmt, ##__VA_ARGS__)
@@ -71,6 +71,10 @@ OMX_ERRORTYPE NX_FFMpegAudioDecoder_ComponentInit (OMX_HANDLETYPE hComponent)
 	NX_BASEPORTTYPE *pPort = NULL;
 	OMX_U32 i=0;
 	NX_FFDEC_AUDIO_COMP_TYPE *pDecComp;
+
+	FUNC_IN;
+
+	TRACE("%s()++ gstNumInstance = %ld, gstMaxInstance = %ld\n", __func__, gstNumInstance, gstMaxInstance);
 
 	if( gstNumInstance >= gstMaxInstance )
 		return OMX_ErrorInsufficientResources;
@@ -184,6 +188,7 @@ OMX_ERRORTYPE NX_FFMpegAudioDecoder_ComponentInit (OMX_HANDLETYPE hComponent)
 	//	Buffer
 	pthread_mutex_init( &pDecComp->hBufMutex, NULL );
 	pDecComp->hBufAllocSem = NX_CreateSem(0, 256);
+	pDecComp->hBufFreeSem = NX_CreateSem(0, 256);
 
 	//	Initialize FFMPEG Codec
 	pDecComp->hAudioCodec = NULL;
@@ -192,6 +197,9 @@ OMX_ERRORTYPE NX_FFMpegAudioDecoder_ComponentInit (OMX_HANDLETYPE hComponent)
 	av_register_all();
 
 	gstNumInstance ++;
+
+	FUNC_OUT;
+	TRACE("%s()-- gstNumInstance = %ld, gstMaxInstance = %ld\n", __func__, gstNumInstance, gstMaxInstance);
 
 	return OMX_ErrorNone;
 }
@@ -202,15 +210,58 @@ static OMX_ERRORTYPE NX_FFAudDec_ComponentDeInit(OMX_HANDLETYPE hComponent)
 	NX_FFDEC_AUDIO_COMP_TYPE *pDecComp = (NX_FFDEC_AUDIO_COMP_TYPE *)pComp->pComponentPrivate;
 	OMX_U32 i=0;
 
+	FUNC_IN;
+
+	TRACE("%s()++ gstNumInstance = %ld, gstMaxInstance = %ld\n", __func__, gstNumInstance, gstMaxInstance);
+
 	//	prevent duplacation
 	if( NULL == pComp->pComponentPrivate )
 		return OMX_ErrorNone;
+
+	if( (OMX_StateLoaded == pDecComp->eCurState && OMX_StateIdle == pDecComp->eNewState) ||
+		(OMX_StateIdle == pDecComp->eCurState && OMX_StateLoaded == pDecComp->eNewState) )
+	{
+		pDecComp->bAbendState = OMX_TRUE;
+		DbgMsg("%s(): Waring. bAbendState: True\n", __func__);
+	}	
 
 	// Destroy command thread
 	pDecComp->eCmdThreadCmd = NX_THREAD_CMD_EXIT;
 	NX_PostSem( pDecComp->hSemCmdWait );
 	NX_PostSem( pDecComp->hSemCmd );
+
+	// add hcjun(2017_11_09)
+	for( i=0 ; i<pDecComp->nNumPort ; i++ )
+	{
+		if(pDecComp->bBufAllocPend[i] == OMX_TRUE)
+		{
+			NX_PostSem(pDecComp->hBufAllocSem);
+			DbgMsg("%s(): Waring. BufAllocPend: Port(%lu)\n", __func__,i );
+		}
+	}
+	for( i=0 ; i<pDecComp->nNumPort ; i++ )
+	{
+		if(pDecComp->bBufFreePend[i] == OMX_TRUE)
+		{
+			NX_PostSem(pDecComp->hBufFreeSem);
+			DbgMsg("%s(): Waring. bBufFreePend: Port(%lu)\n", __func__,i );
+		}
+	}
+	DbgMsg("%s(): __LINE__(%d)\n", __func__,__LINE__ );
+
+	if(pDecComp->hBufCtrlSem)
+	{
+		DbgMsg("%s(): __LINE__(%d)\n", __func__,__LINE__ );
+		NX_PostSem( pDecComp->hBufCtrlSem );
+	}
+	if(pDecComp->hBufChangeSem)
+	{
+		DbgMsg("%s(): __LINE__(%d)\n", __func__,__LINE__ );
+		NX_PostSem( pDecComp->hBufChangeSem );
+	}
+	DbgMsg("%s(): __LINE__(%d)\n", __func__,__LINE__ );
 	pthread_join( pDecComp->hCmdThread, NULL );
+	DbgMsg("%s(): __LINE__(%d)\n", __func__,__LINE__ );
 	NX_DeinitQueue( &pDecComp->cmdQueue );
 	//	Destroy Semaphore
 	NX_DestroySem( pDecComp->hSemCmdWait );
@@ -249,6 +300,9 @@ static OMX_ERRORTYPE NX_FFAudDec_ComponentDeInit(OMX_HANDLETYPE hComponent)
 	}
 
 	gstNumInstance --;
+
+	FUNC_OUT;
+	TRACE("%s()-- gstNumInstance = %ld, gstMaxInstance = %ld\n", __func__, gstNumInstance, gstMaxInstance);
 
 	return OMX_ErrorNone;
 }
@@ -631,6 +685,18 @@ static OMX_ERRORTYPE NX_FFAudDec_UseBuffer (OMX_HANDLETYPE hComponent, OMX_BUFFE
 		pPortBuf = pDecComp->pOutputBuffers;
 	}
 
+	// add hcjun(2017_11_09)
+	// If an error occurs during FreeBuffer(buffer free), it is pending.
+	for( i=0 ; i<pDecComp->nNumPort ; i++ )
+	{
+		if(pDecComp->bBufFreePend[i] == OMX_TRUE)
+		{
+			NX_PostSem(pDecComp->hBufFreeSem);
+			pDecComp->bBufFreePend[i] = OMX_FALSE;
+			DbgMsg("%s(): Waring. bBufFreePend: Port(%lu)\n", __func__,i );
+		}
+	}	
+
 	DbgBuffer( "%s() : pPort->stdPortDef.nBufferSize = %ld\n", __FUNCTION__, pPort->stdPortDef.nBufferSize);
 
 	if( pPort->stdPortDef.nBufferSize > nSizeBytes )
@@ -683,6 +749,7 @@ static OMX_ERRORTYPE NX_FFAudDec_StateTransition( NX_FFDEC_AUDIO_COMP_TYPE *pDec
 	OMX_PARAM_PORTDEFINITIONTYPE *pPort = NULL;
 	NX_QUEUE *pQueue = NULL;
 	OMX_BUFFERHEADERTYPE *pBufHdr = NULL;
+	OMX_BOOL bAbendState = OMX_FALSE;
 
 	TRACE( "%s() In : eCurState %d -> eNewState %d \n", __FUNCTION__, eCurState, eNewState );
 
@@ -709,7 +776,20 @@ static OMX_ERRORTYPE NX_FFAudDec_StateTransition( NX_FFDEC_AUDIO_COMP_TYPE *pDec
 						//	Buffer Allocation must be done before transferring to Loaded Idle.
 						//	On Android, however, this process does not seem to go through.
 						//	If it is originally standardized, it must wait until the buffer allocation is done in this process.
+						pDecComp->bBufAllocPend[i] = OMX_TRUE;
+						DbgBuffer( "%s() NX_PendSem(pDecComp->hBufAllocSem) (port(%lu) +++\n", __FUNCTION__, i);
 						NX_PendSem(pDecComp->hBufAllocSem);
+						DbgBuffer( "%s() NX_PendSem(pDecComp->hBufAllocSem) (port(%lu) ---\n", __FUNCTION__, i);
+						pDecComp->bBufAllocPend[i] = OMX_FALSE;
+
+						bAbendState = pDecComp->bAbendState;
+
+						if( OMX_TRUE == bAbendState )
+						{
+							pDecComp->eCurState = eNewState;
+							DbgBuffer( "%s() Waring: bAbendState == TRUE\n", __FUNCTION__);
+							return eError;
+						}
 					}
 					//
 					//	TODO : Need exit check.
@@ -728,7 +808,13 @@ static OMX_ERRORTYPE NX_FFAudDec_StateTransition( NX_FFDEC_AUDIO_COMP_TYPE *pDec
 
 				//	Open Audio Decoder
 				TRACE("Wait BufferCtrlSem");
-				NX_PendSem(pDecComp->hBufCtrlSem);
+//				NX_PendSem(pDecComp->hBufCtrlSem);
+				if( OMX_TRUE == bAbendState )
+				{
+					pDecComp->eCurState = eNewState;
+					DbgBuffer( "%s() Waring:.. bAbendState == TRUE\n", __FUNCTION__);
+					return eError;
+				}
 				openAudioCodec( pDecComp );
 
 				//	Wait thread creation
@@ -763,7 +849,20 @@ static OMX_ERRORTYPE NX_FFAudDec_StateTransition( NX_FFDEC_AUDIO_COMP_TYPE *pDec
 				for( i=0 ; i<pDecComp->nNumPort ; i++ ){
 					pPort = (OMX_PARAM_PORTDEFINITIONTYPE *)pDecComp->pPort[i];
 					if( OMX_TRUE == pPort->bEnabled ){
-						NX_PendSem(pDecComp->hBufAllocSem);
+						pDecComp->bBufFreePend[i] = OMX_TRUE;
+						DbgBuffer( "%s() NX_PendSem(pDecComp->hBufFreeSem) (port(%lu) +++\n", __FUNCTION__, i);
+						NX_PendSem(pDecComp->hBufFreeSem);
+						DbgBuffer( "%s() NX_PendSem(pDecComp->hBufFreeSem) (port(%lu) ---\n", __FUNCTION__, i);
+						pDecComp->bBufFreePend[i] = OMX_FALSE;
+
+						bAbendState = pDecComp->bAbendState;
+
+						if( OMX_TRUE == bAbendState )
+						{
+							pDecComp->eCurState = eNewState;
+							DbgBuffer( "%s() Waring: bAbendState == TRUE\n", __FUNCTION__);
+							return eError;
+						}												
 					}
 					//
 					//	TODO : Need exit check.
@@ -973,7 +1072,7 @@ static void NX_FFAudDec_CommandProc( NX_BASE_COMPNENT *pBaseComp, OMX_COMMANDTYP
 			}
 
 			//	Step 1. The component shall return the buffers with a call to EmptyBufferDone/FillBufferDone,
-			NX_PendSem( pDecComp->hBufCtrlSem );
+//			NX_PendSem( pDecComp->hBufCtrlSem );
 			if( OMX_ALL == nParam1 ){
 				//	Disable all ports
 			}else{
@@ -981,22 +1080,22 @@ static void NX_FFAudDec_CommandProc( NX_BASE_COMPNENT *pBaseComp, OMX_COMMANDTYP
 				//	Specific port
 			}
 			TRACE("NX_FFAudDec_CommandProc : OMX_CommandPortDisable \n");
-			NX_PostSem( pDecComp->hBufCtrlSem );
+//			NX_PostSem( pDecComp->hBufCtrlSem );
 			break;
 		}
 		case OMX_CommandPortEnable:  // Enable a port on a component.
 		{
-			NX_PendSem( pDecComp->hBufCtrlSem );
+//			NX_PendSem( pDecComp->hBufCtrlSem );
 			TRACE("NX_FFAudDec_CommandProc : OMX_CommandPortEnable \n");
 			pDecComp->pInputPort->stdPortDef.bEnabled = OMX_FALSE;
-			NX_PostSem( pDecComp->hBufCtrlSem );
+//			NX_PostSem( pDecComp->hBufCtrlSem );
 			break;
 		}
 		case OMX_CommandMarkBuffer:  // Mark a component/buffer for observation
 		{
-			NX_PendSem( pDecComp->hBufCtrlSem );
+//			NX_PendSem( pDecComp->hBufCtrlSem );
 			TRACE("NX_FFAudDec_CommandProc : OMX_CommandMarkBuffer \n");
-			NX_PostSem( pDecComp->hBufCtrlSem );
+//			NX_PostSem( pDecComp->hBufCtrlSem );
 			break;
 		}
 		default:

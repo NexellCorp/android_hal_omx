@@ -7,6 +7,44 @@
 #include "NX_OMXVideoDecoder.h"
 #include "NX_DecoderUtil.h"
 
+static int32_t MakeDiv3DecodeSpecificInfo( NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, OMX_U8 *pIn, OMX_S32 inSize, OMX_U8 *pOut )
+{
+	unsigned char *pbHeader = pOut;
+	int nMetaData = inSize;
+	unsigned char *pbMetaData = pIn;
+	int retSize = 0;
+	if( !nMetaData )
+	{
+		PUT_LE32(pbHeader, MKTAG('C', 'N', 'M', 'V'));	//signature 'CNMV'
+		PUT_LE16(pbHeader, 0x00);						//version
+		PUT_LE16(pbHeader, 0x20);						//length of header in bytes
+		PUT_LE32(pbHeader, MKTAG('D', 'I', 'V', '3'));	//codec FourCC
+		PUT_LE16(pbHeader, pDecComp->width);			//width
+		PUT_LE16(pbHeader, pDecComp->height);			//height
+		PUT_LE32(pbHeader, 0);							//frame rate
+		PUT_LE32(pbHeader, 0);							//time scale(?)
+		PUT_LE32(pbHeader, 1);							//number of frames in file
+		PUT_LE32(pbHeader, 0);							//unused
+		retSize += 32;
+	}
+	else
+	{
+		PUT_BE32(pbHeader, nMetaData);
+		retSize += 4;
+		memcpy(pbHeader, pbMetaData, nMetaData);
+		retSize += nMetaData;
+	}
+	return retSize;
+}
+
+static int MakeDiv3Stream( OMX_U8 *pIn, OMX_S32 inSize, OMX_U8 *pOut )
+{
+	PUT_LE32(pOut,inSize);
+	PUT_LE32(pOut,0);
+	PUT_LE32(pOut,0);
+	memcpy( pOut, pIn, inSize );
+	return (inSize + 12);
+}
 
 int NX_DecodeDiv3Frame(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_QUEUE *pInQueue, NX_QUEUE *pOutQueue)
 {
@@ -62,21 +100,10 @@ int NX_DecodeDiv3Frame(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_QUEUE *pInQueue, 
 	{
 		OMX_S32 size = 0;
 
-		if(pDecComp->nExtraDataSize > 0)
-		{
-			memcpy( pDecComp->tmpInputBuffer, pDecComp->pExtraData, pDecComp->nExtraDataSize );
-			size = pDecComp->nExtraDataSize;
-			memcpy( pDecComp->tmpInputBuffer + size, inData, inSize );
-			size = size + inSize;
-		}
-		else
-		{
-			memcpy( pDecComp->tmpInputBuffer, inData, inSize );
-			size = inSize;
-		}
-
+		size = MakeDiv3DecodeSpecificInfo( pDecComp, pDecComp->pExtraData, pDecComp->nExtraDataSize, pDecComp->tmpInputBuffer );
+		size += MakeDiv3Stream( inData, inSize, pDecComp->tmpInputBuffer + size );
 		//	Initialize VPU
-		ret = InitializeCodaVpu(pDecComp, pDecComp->tmpInputBuffer, 0 );
+		ret = InitializeCodaVpu(pDecComp, pDecComp->tmpInputBuffer, size );
 		if( 0 != ret )
 		{
 			ErrMsg("VPU initialized Failed!!!!\n");
@@ -85,12 +112,6 @@ int NX_DecodeDiv3Frame(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_QUEUE *pInQueue, 
 
 		pDecComp->bNeedKey = OMX_FALSE;
 		pDecComp->bInitialized = OMX_TRUE;
-
-		//decIn.strmBuf = pDecComp->tmpInputBuffer;
-		//decIn.strmSize = 0;
-		//decIn.timeStamp = pInBuf->nTimeStamp;
-		//decIn.eos = 0;
-		//ret = NX_V4l2DecDecodeFrame( pDecComp->hVpuCodec, &decIn, &decOut );
 		decOut.dispIdx = -1;
 	}
 	else
@@ -101,7 +122,8 @@ int NX_DecodeDiv3Frame(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_QUEUE *pInQueue, 
 			{
 				goto Exit;
 			}
-			memcpy( pDecComp->tmpInputBuffer + pDecComp->tmpInputBufferIndex, inData, inSize );
+			inSize = MakeDiv3Stream( inData, inSize, pDecComp->tmpInputBuffer + pDecComp->tmpInputBufferIndex );
+
 			pDecComp->tmpInputBufferIndex = pDecComp->tmpInputBufferIndex + inSize;
 
 			pDecComp->inFlushFrameCount++;
@@ -118,6 +140,12 @@ int NX_DecodeDiv3Frame(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_QUEUE *pInQueue, 
 			{
 				goto Exit;
 			}
+		}
+
+		else
+		{
+			inSize = MakeDiv3Stream( inData, inSize, pDecComp->tmpInputBuffer );
+			inData = pDecComp->tmpInputBuffer;
 		}
 
 		decIn.strmBuf = inData;

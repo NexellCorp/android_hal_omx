@@ -95,6 +95,34 @@ static int VP8CheckPortReconfiguration( NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, OMX
 	return 0;
 }
 
+static int32_t MakeVP8DecoderSpecificInfo( NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp )
+{
+	int retSize = 0;
+	OMX_U8 *pbHeader = pDecComp->tmpInputBuffer;
+
+	PUT_LE32(pbHeader, MKTAG('D', 'K', 'I', 'F'));		//signature 'DKIF'
+	PUT_LE16(pbHeader, 0x00);							//version
+	PUT_LE16(pbHeader, 0x20);							//length of header in bytes
+	PUT_LE32(pbHeader, MKTAG('V', 'P', '8', '0'));		//codec FourCC
+	PUT_LE16(pbHeader, pDecComp->width);				//width
+	PUT_LE16(pbHeader, pDecComp->height);				//height
+	PUT_LE32(pbHeader, 0);								//frame rate
+	PUT_LE32(pbHeader, 0);								//time scale(?)
+	PUT_LE32(pbHeader, 1);								//number of frames in file
+	PUT_LE32(pbHeader, 0);								//unused
+	retSize += 32;
+	return 	retSize;
+}
+
+static int MakeVP8Stream( OMX_U8 *pIn, OMX_S32 inSize, OMX_U8 *pOut )
+{
+	PUT_LE32(pOut, inSize);								//frame_chunk_len
+	PUT_LE32(pOut, 0);									//time stamp
+	PUT_LE32(pOut, 0);
+	memcpy( pOut, pIn, inSize );
+	return ( inSize + 12 );
+}
+
 int NX_DecodeVP8Frame(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_QUEUE *pInQueue, NX_QUEUE *pOutQueue)
 {
 	OMX_BUFFERHEADERTYPE* pInBuf = NULL, *pOutBuf = NULL;
@@ -148,6 +176,7 @@ int NX_DecodeVP8Frame(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_QUEUE *pInQueue, N
 	{
 		int initBufSize = 0;
 		unsigned char *initBuf = NULL;
+		OMX_S32 size = 0;
 
 		if( pDecComp->codecSpecificDataSize == 0 && pDecComp->nExtraDataSize>0 )
 		{
@@ -163,17 +192,12 @@ int NX_DecodeVP8Frame(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_QUEUE *pInQueue, N
 			memcpy( initBuf, pDecComp->codecSpecificData, pDecComp->codecSpecificDataSize );
 			memcpy( initBuf + pDecComp->codecSpecificDataSize, inData, inSize );
 		}
-
-		if( pInBuf->nFlags & OMX_BUFFERFLAG_CODECCONFIG )
-		{
-			ret = 0;
-			goto Exit;
-		}
-
+		size = MakeVP8DecoderSpecificInfo( pDecComp );
+		size += MakeVP8Stream( initBuf, initBufSize, pDecComp->tmpInputBuffer + size );
 		//	Initialize VPU
-		ret = InitializeCodaVpu(pDecComp, initBuf, initBufSize );
-
+		ret = InitializeCodaVpu(pDecComp, pDecComp->tmpInputBuffer, size );
 		free( initBuf );
+
 
 		if( 0 > ret )
 		{
@@ -215,7 +239,8 @@ int NX_DecodeVP8Frame(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_QUEUE *pInQueue, N
 			{
 				goto Exit;
 			}
-			memcpy( pDecComp->tmpInputBuffer + pDecComp->tmpInputBufferIndex, inData, inSize );
+			inSize = MakeVP8Stream( inData, inSize, pDecComp->tmpInputBuffer + pDecComp->tmpInputBufferIndex );
+
 			pDecComp->tmpInputBufferIndex = pDecComp->tmpInputBufferIndex + inSize;
 			pDecComp->inFlushFrameCount++;
 			if( FLUSH_FRAME_COUNT == pDecComp->inFlushFrameCount)
@@ -230,6 +255,11 @@ int NX_DecodeVP8Frame(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_QUEUE *pInQueue, N
 			{
 				goto Exit;
 			}
+		}
+		else
+		{
+			inSize = MakeVP8Stream( inData, inSize, pDecComp->tmpInputBuffer );
+			inData = pDecComp->tmpInputBuffer;
 		}
 
 		decIn.strmBuf = inData;

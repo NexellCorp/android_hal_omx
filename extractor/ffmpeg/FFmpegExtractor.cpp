@@ -823,9 +823,9 @@ int FFmpegExtractor::packet_queue_get(PacketQueue *q, AVPacket *pkt, int block)
 			ret = 0;
 			break;
 		} else {
-			if(mbreadEntryExit == true)
+			if(mbreaderEntryExit == true)
 			{
-				ALOGI("packet_queue_get() mbreadEntryExit \n");	
+				ALOGI("packet_queue_get() mbreaderEntryExit \n");	
 				ret = -1;
 				break;
 			}
@@ -1610,10 +1610,10 @@ int FFmpegExtractor::stream_seek(int64_t pos, enum AVMediaType media_type)
 	mSeekReq = 1;
 	mEOF2 = false;
 
-	if (mbreadEntryExit)
+	if (mbreaderEntryExit)
 	{
 		resumeInit();
-		mbreadEntryExit = false;
+		mbreaderEntryExit = false;
 	}
 
 	return SEEK;
@@ -1734,16 +1734,16 @@ int av_find_best_audio_stream(AVFormatContext *ic,
 		switch(avctx->codec_id)
 		{
 			case AV_CODEC_ID_AAC:
-//			case AV_CODEC_ID_AC3:
+			case AV_CODEC_ID_AC3:
 			case AV_CODEC_ID_MP1:
 			case AV_CODEC_ID_MP2:
-//			case AV_CODEC_ID_WMAV1:
-//			case AV_CODEC_ID_WMAV2:
-//			case AV_CODEC_ID_WMAPRO:
-//			case AV_CODEC_ID_WMALOSSLESS:
-//			case AV_CODEC_ID_COOK:
-//			case AV_CODEC_ID_APE:
-//			case AV_CODEC_ID_DTS:
+			case AV_CODEC_ID_WMAV1:
+			case AV_CODEC_ID_WMAV2:
+			case AV_CODEC_ID_WMAPRO:
+			case AV_CODEC_ID_WMALOSSLESS:
+			case AV_CODEC_ID_COOK:
+			case AV_CODEC_ID_APE:
+			case AV_CODEC_ID_DTS:
 			case AV_CODEC_ID_MP3:
 			case AV_CODEC_ID_FLAC:
 			case AV_CODEC_ID_VORBIS:
@@ -1799,7 +1799,7 @@ int FFmpegExtractor::initStreams()
 
    	mVideoPktTsPrev	= AV_NOPTS_VALUE;
 	mAudioPktTsPrev	= AV_NOPTS_VALUE;
-	mbreadEntryExit = false;
+	mbreaderEntryExit = false;
 	mbMakeEOS = false;
 
 	av_init_packet(&flush_pkt);
@@ -1876,7 +1876,13 @@ int FFmpegExtractor::initStreams()
 		video_ret = stream_component_open(st_index[AVMEDIA_TYPE_VIDEO]);
 	}
 
-	if ( audio_ret < 0 && video_ret < 0) {
+#if 0
+	if ( audio_ret < 0 && video_ret < 0)
+#else
+	if ( (st_index[AVMEDIA_TYPE_VIDEO] >= 0 && video_ret < 0) ||
+		 (st_index[AVMEDIA_TYPE_AUDIO] >= 0 && audio_ret < 0) )
+#endif		
+	{
 		ALOGE("%s: could not open codecs\n", mFilename);
 		ret = -1;
 		goto fail;
@@ -2007,12 +2013,13 @@ void FFmpegExtractor::readerEntry() {
 	AVPacket pkt1, *pkt = &pkt1;
 //	int eof = 0;
 	mEOF2 = false;
+	int hangCheckCount = 0;
 
 	ALOGV("FFmpegExtractor::readerEntry");
 
 	mVideoEOSReceived = false;
 	mAudioEOSReceived = false;
-	mbreadEntryExit = false;
+	mbreaderEntryExit = false;
 	mbMakeEOS = false;
 
 	for (;;) {
@@ -2069,8 +2076,25 @@ void FFmpegExtractor::readerEntry() {
 #endif
 				/* wait 10 ms */
 				NX_Delay(10);
-				continue;
+
+				if( (mEOF2 == false)							  &&
+					(mAudioStreamIdx >= 0 && mVideoStreamIdx >= 0 ) &&
+					(mAudioQ.size == 0 && (mAudioQ.size + mVideoQ.size > MAX_QUEUE_SIZE) )
+					)
+				{
+					hangCheckCount++;
+				}
+				
+				if(hangCheckCount > 100*3)  //(10*300)ms
+				{
+					mEOF2 = true;						
+				}
+				else
+				{
+					continue;
+				}				
 		}
+		hangCheckCount = 0;
 
 		if (mEOF2) {
 			if (mVideoStreamIdx >= 0) {
@@ -2229,7 +2253,7 @@ fail:
 
 	ALOGI("reader thread goto end...");
 
-	mbreadEntryExit = true;
+	mbreaderEntryExit = true;
 	if (mAudioStreamIdx >= 0)
 	{
 		if(true == mAudioQ.bPend)
@@ -2386,20 +2410,20 @@ static int get_num_supported_video_tracks(AVFormatContext *avfctx)
 		{
 			case AV_CODEC_ID_H264:
 			case AV_CODEC_ID_MPEG4:
-//			case AV_CODEC_ID_FLV1:
+			case AV_CODEC_ID_FLV1:
 			case AV_CODEC_ID_MSMPEG4V3:
 			case AV_CODEC_ID_H263:
 			case AV_CODEC_ID_H263P:
 			case AV_CODEC_ID_H263I:
 			case AV_CODEC_ID_MPEG1VIDEO:
 			case AV_CODEC_ID_MPEG2VIDEO:
-//			case AV_CODEC_ID_WMV3:
-//			case AV_CODEC_ID_VC1:
+			case AV_CODEC_ID_WMV3:
+			case AV_CODEC_ID_VC1:
 			case AV_CODEC_ID_VP8:
 			case AV_CODEC_ID_VP9:
-//			case AV_CODEC_ID_RV30:
-//			case AV_CODEC_ID_RV40:
-//			case AV_CODEC_ID_HEVC:
+			case AV_CODEC_ID_RV30:
+			case AV_CODEC_ID_RV40:
+			case AV_CODEC_ID_HEVC:
 				count ++;
 				break;
 			default:

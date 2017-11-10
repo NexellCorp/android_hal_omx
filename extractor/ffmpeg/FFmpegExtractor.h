@@ -113,7 +113,7 @@ private:
     bool mAudioEOSReceived;
 
 	// 20170515 added by hcjun for readEntry Thread
-    bool mbreadEntryExit;
+    bool mbreaderEntryExit;
     int64_t mVideoPktTsPrev;
     int64_t mAudioPktTsPrev;
     bool mbMakeEOS;
