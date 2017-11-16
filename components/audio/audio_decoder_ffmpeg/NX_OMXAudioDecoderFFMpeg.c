@@ -247,21 +247,17 @@ static OMX_ERRORTYPE NX_FFAudDec_ComponentDeInit(OMX_HANDLETYPE hComponent)
 			DbgMsg("%s(): Waring. bBufFreePend: Port(%lu)\n", __func__,i );
 		}
 	}
-	DbgMsg("%s(): __LINE__(%d)\n", __func__,__LINE__ );
 
 	if(pDecComp->hBufCtrlSem)
 	{
-		DbgMsg("%s(): __LINE__(%d)\n", __func__,__LINE__ );
 		NX_PostSem( pDecComp->hBufCtrlSem );
 	}
 	if(pDecComp->hBufChangeSem)
 	{
-		DbgMsg("%s(): __LINE__(%d)\n", __func__,__LINE__ );
 		NX_PostSem( pDecComp->hBufChangeSem );
 	}
-	DbgMsg("%s(): __LINE__(%d)\n", __func__,__LINE__ );
+
 	pthread_join( pDecComp->hCmdThread, NULL );
-	DbgMsg("%s(): __LINE__(%d)\n", __func__,__LINE__ );
 	NX_DeinitQueue( &pDecComp->cmdQueue );
 	//	Destroy Semaphore
 	NX_DestroySem( pDecComp->hSemCmdWait );

@@ -2208,7 +2208,20 @@ int processEOS(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp)
 				{
 					NX_V4l2DecClrDspFlag( pDecComp->hVpuCodec, NULL, decOut.dispIdx );
 					ErrMsg("[EOS]Unexpected Buffer Handling!!!! Goto Exit\n");
-					return 0;
+
+					for(i=0; i<NX_OMX_MAX_BUF; i++)
+					{
+						outIdx = GetUsableBufferIdx(pDecComp);
+						if( pDecComp->outBufferUseFlag[outIdx] != 0 )
+						{
+							DbgMsg("[EOS] DummyBuf Send !!!\n");
+							pOutBuf = pDecComp->pOutputBuffers[outIdx];
+							pDecComp->outBufferUseFlag[outIdx] = 0;
+							pDecComp->curOutBuffers --;
+							pOutBuf->nFilledLen = 0;
+							break;
+						}
+					}
 				}
 				else
 				{
