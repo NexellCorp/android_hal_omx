@@ -1099,6 +1099,8 @@ int FFmpegExtractor::stream_component_open(int stream_index)
 	case AV_CODEC_ID_VORBIS:
 	case AV_CODEC_ID_FLAC:
 	case AV_CODEC_ID_PCM_S16LE:
+	case AV_CODEC_ID_AMR_NB:
+	case AV_CODEC_ID_AMR_WB:
 		supported = true;
 		break;
 	default:
@@ -1471,6 +1473,16 @@ int FFmpegExtractor::stream_component_open(int stream_index)
 			if( avctx->extradata_size > 0 )
 				addVorbisCodecInfo( meta, avctx->extradata, avctx->extradata_size);
 			break;
+		case AV_CODEC_ID_AMR_NB:
+			ALOGV("AMR-NB");
+			meta = new MetaData;
+			meta->setCString(kKeyMIMEType, MEDIA_MIMETYPE_AUDIO_AMR_NB);
+			break;
+		case AV_CODEC_ID_AMR_WB:
+			ALOGV("AMR-WB");
+			meta = new MetaData;
+			meta->setCString(kKeyMIMEType, MEDIA_MIMETYPE_AUDIO_AMR_WB);
+			break;
 		default:
 			CHECK(!"Should not be here. Unsupported codec.");
 			break;
@@ -1748,6 +1760,8 @@ int av_find_best_audio_stream(AVFormatContext *ic,
 			case AV_CODEC_ID_FLAC:
 			case AV_CODEC_ID_VORBIS:
 			case AV_CODEC_ID_PCM_S16LE:
+			case AV_CODEC_ID_AMR_NB:
+			case AV_CODEC_ID_AMR_WB:
 				break;
 			default:
 				continue;
