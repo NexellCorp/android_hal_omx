@@ -356,7 +356,7 @@ OMX_ERRORTYPE NX_BaseFreeBuffer (OMX_HANDLETYPE hComponent, OMX_U32 nPortIndex, 
 			pPort->nAllocatedBuf --;
 			if( 0 == pPort->nAllocatedBuf ){
 				pPort->stdPortDef.bPopulated = OMX_FALSE;
-				NX_PostSem(pComp->hBufAllocSem);
+				NX_PostSem(pComp->hBufFreeSem);
 			}
 			return OMX_ErrorNone;
 		}
