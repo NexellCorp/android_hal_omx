@@ -280,6 +280,7 @@ static OMX_ERRORTYPE NX_FFAudDec_ComponentDeInit(OMX_HANDLETYPE hComponent)
 	//	Buffer
 	pthread_mutex_destroy( &pDecComp->hBufMutex );
 	NX_DestroySem(pDecComp->hBufAllocSem);
+	NX_DestroySem(pDecComp->hBufFreeSem);
 
 	if( pDecComp->pExtraData )
 		free(pDecComp->pExtraData);
