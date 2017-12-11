@@ -2028,6 +2028,7 @@ void FFmpegExtractor::readerEntry() {
 //	int eof = 0;
 	mEOF2 = false;
 	int hangCheckCount = 0;
+	bool bNeedFirstVideoKey = false;	
 
 	ALOGV("FFmpegExtractor::readerEntry");
 
@@ -2079,6 +2080,7 @@ void FFmpegExtractor::readerEntry() {
 				mEOF2 = false;
 			}
 			mSeekReq = 0;
+			bNeedFirstVideoKey = false;
 		}
 
 		/* if the queue are full, no need to read more */
@@ -2101,6 +2103,7 @@ void FFmpegExtractor::readerEntry() {
 				
 				if(hangCheckCount > 100*3)  //(10*300)ms
 				{
+					ALOGD("occur hangCheck!!!");
 					mEOF2 = true;						
 				}
 				else
@@ -2148,6 +2151,35 @@ void FFmpegExtractor::readerEntry() {
 		if( mSeekReq )
 			continue;
 		ret = av_read_frame(mFormatCtx, pkt);
+
+		// if there is no key frame after seek, it is discarded.
+		if( (ret >= 0)	&&
+			(mAudioStreamIdx >= 0 && mVideoStreamIdx >= 0 )
+		)
+		{
+			if(false == bNeedFirstVideoKey)
+			{
+				if (pkt->stream_index == mVideoStreamIdx)
+				{
+					int32_t keyFrame = 0;
+					keyFrame = (pkt->flags & AV_PKT_FLAG_KEY) ? 1 : 0;
+					if(keyFrame)
+					{
+						bNeedFirstVideoKey = true;
+					}
+					else //no keyframe
+					{
+						av_free_packet(pkt);
+						continue;
+					}
+				}
+				else  //audio
+				{
+					av_free_packet(pkt);
+					continue;
+				}
+			}
+		}
 
 		if (ret >= 0)
 		{
