@@ -1988,6 +1988,7 @@ int InitializeCodaVpu(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, unsigned char *buf, i
 
 #if OUT_BUF_COPY
 			pDecComp->bOutBufCopy = OMX_TRUE;
+			DbgMsg("%s : OutBufCopy Mode\n", __func__);
 #else
 			pDecComp->bOutBufCopy = OMX_FALSE;
 #endif

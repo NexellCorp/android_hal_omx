@@ -325,7 +325,35 @@ int NX_DecodeVC1Frame(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_QUEUE *pInQueue, N
 		decIn.strmSize = inSize;
 		decIn.timeStamp = pInBuf->nTimeStamp;
 		decIn.eos = 0;
+
+#if 1	// add hcjun 2018_01_04
+		// only vc1 check skip frame.
+		if ( (pDecComp->codecType.wmvType.eFormat != OMX_VIDEO_WMVFormat8 && pDecComp->codecType.wmvType.eFormat != OMX_VIDEO_WMVFormat9 && !pDecComp->bXMSWMVType) &&
+			 (inData[0] == 0 && inData[1] == 0 && inData[2] == 1) ) // vc1 check start code as prefix (0x00, 0x00, 0x01)
+		{
+			int32_t piFrameType = -1;
+			NX_V4L2DEC_IN decInTmp;
+
+			memset(&decInTmp,  0, sizeof(NX_V4L2DEC_IN));
+
+			decInTmp.strmBuf = inData + 4;
+			decInTmp.strmSize = inSize - 4;
+			decInTmp.timeStamp = pInBuf->nTimeStamp;
+			decInTmp.eos = 0;
+
+			ret = NX_DecGetFrameType(pDecComp->hVpuCodec, &decInTmp, pDecComp->videoCodecId, &piFrameType);
+			if( (ret == 0) && (piFrameType == PIC_TYPE_SKIP) )
+			{
+				OMX_TICKS timestamp;
+				OMX_U32 flag;
+				PopVideoTimeStamp(pDecComp, &timestamp, &flag );
+				goto Exit;
+			}
+		}
 		ret = NX_V4l2DecDecodeFrame( pDecComp->hVpuCodec, &decIn, &decOut );
+#else
+		ret = NX_V4l2DecDecodeFrame( pDecComp->hVpuCodec, &decIn, &decOut );
+#endif
 	}
 	TRACE(">>> [%06ld/%06ld] decOut : dispIdx(%d) decIdx(%d) \n",
 		pDecComp->inFrameCount, pDecComp->outFrameCount, decOut.dispIdx, decOut.decIdx );

@@ -314,16 +314,16 @@ sp<MetaData> FFMpegSource::getFormat() {
 bool FFMpegSource::Mp3CheckHeader(uint32_t h){
 
 	uint32_t v;
-    if ((h&0xffe00000)^0xffe00000)
-        return false;
-    if (((h>>19)&3) == 1)	//version
-        return false;
-    if (((h>>17)&3) == 0)	//layer
-        return false;
-    if (((h>>10)&3) == 3)	//frequency
-        return false;
-    if (((v=(h>>12)&0x0f) == 0x00) || v == 0x0f)	//bit rate
-        return false;
+	if ((h&0xffe00000)^0xffe00000)
+		return false;
+	if (((h>>19)&3) == 1)	//version
+		return false;
+	if (((h>>17)&3) == 0)	//layer
+		return false;
+	if (((h>>10)&3) == 3)	//frequency
+		return false;
+	if (((v=(h>>12)&0x0f) == 0x00) || v == 0x0f)	//bit rate
+	return false;
 
 	return true;
 }
@@ -879,65 +879,65 @@ static sp<ABuffer> MakeMPEGVideoESDS(const sp<ABuffer> &csd) {
 }
 
 static int bytesForSize(size_t size) {
-    // use at most 28 bits (4 times 7)
-    CHECK(size <= 0xfffffff);
+	// use at most 28 bits (4 times 7)
+	CHECK(size <= 0xfffffff);
 
-    if (size > 0x1fffff) {
-        return 4;
-    } else if (size > 0x3fff) {
-        return 3;
-    } else if (size > 0x7f) {
-        return 2;
-    }
-    return 1;
+	if (size > 0x1fffff) {
+		return 4;
+	} else if (size > 0x3fff) {
+		return 3;
+	} else if (size > 0x7f) {
+		return 2;
+	}
+	return 1;
 }
 
 static void storeSize(uint8_t *data, size_t &idx, size_t size) {
-    int numBytes = bytesForSize(size);
-    idx += numBytes;
+	int numBytes = bytesForSize(size);
+	idx += numBytes;
 
-    data += idx;
-    size_t next = 0;
-    while (numBytes--) {
-        *--data = (size & 0x7f) | next;
-        size >>= 7;
-        next = 0x80;
-    }
+	data += idx;
+	size_t next = 0;
+	while (numBytes--) {
+		*--data = (size & 0x7f) | next;
+		size >>= 7;
+		next = 0x80;
+	}
 }
 
 static void addESDSFromCodecPrivate(
-        const sp<MetaData> &meta,
-        bool isAudio, const void *priv, size_t privSize) {
+		const sp<MetaData> &meta,
+		bool isAudio, const void *priv, size_t privSize) {
 
-    int privSizeBytesRequired = bytesForSize(privSize);
-    int esdsSize2 = 14 + privSizeBytesRequired + privSize;
-    int esdsSize2BytesRequired = bytesForSize(esdsSize2);
-    int esdsSize1 = 4 + esdsSize2BytesRequired + esdsSize2;
-    int esdsSize1BytesRequired = bytesForSize(esdsSize1);
-    size_t esdsSize = 1 + esdsSize1BytesRequired + esdsSize1;
-    uint8_t *esds = new uint8_t[esdsSize];
+	int privSizeBytesRequired = bytesForSize(privSize);
+	int esdsSize2 = 14 + privSizeBytesRequired + privSize;
+	int esdsSize2BytesRequired = bytesForSize(esdsSize2);
+	int esdsSize1 = 4 + esdsSize2BytesRequired + esdsSize2;
+	int esdsSize1BytesRequired = bytesForSize(esdsSize1);
+	size_t esdsSize = 1 + esdsSize1BytesRequired + esdsSize1;
+	uint8_t *esds = new uint8_t[esdsSize];
 
-    size_t idx = 0;
-    esds[idx++] = 0x03;
-    storeSize(esds, idx, esdsSize1);
-    esds[idx++] = 0x00; // ES_ID
-    esds[idx++] = 0x00; // ES_ID
-    esds[idx++] = 0x00; // streamDependenceFlag, URL_Flag, OCRstreamFlag
-    esds[idx++] = 0x04;
-    storeSize(esds, idx, esdsSize2);
-    esds[idx++] = isAudio ? 0x40   // Audio ISO/IEC 14496-3
-                          : 0x20;  // Visual ISO/IEC 14496-2
-    for (int i = 0; i < 12; i++) {
-        esds[idx++] = 0x00;
-    }
-    esds[idx++] = 0x05;
-    storeSize(esds, idx, privSize);
-    memcpy(esds + idx, priv, privSize);
+	size_t idx = 0;
+	esds[idx++] = 0x03;
+	storeSize(esds, idx, esdsSize1);
+	esds[idx++] = 0x00; // ES_ID
+	esds[idx++] = 0x00; // ES_ID
+	esds[idx++] = 0x00; // streamDependenceFlag, URL_Flag, OCRstreamFlag
+	esds[idx++] = 0x04;
+	storeSize(esds, idx, esdsSize2);
+	esds[idx++] = isAudio ? 0x40   // Audio ISO/IEC 14496-3
+						  : 0x20;  // Visual ISO/IEC 14496-2
+	for (int i = 0; i < 12; i++) {
+		esds[idx++] = 0x00;
+	}
+	esds[idx++] = 0x05;
+	storeSize(esds, idx, privSize);
+	memcpy(esds + idx, priv, privSize);
 
-    meta->setData(kKeyESDS, 0, esds, esdsSize);
+	meta->setData(kKeyESDS, 0, esds, esdsSize);
 
-    delete[] esds;
-    esds = NULL;
+	delete[] esds;
+	esds = NULL;
 }
 
 // Returns the sample rate based on the sampling frequency index
@@ -1238,7 +1238,7 @@ int FFmpegExtractor::stream_component_open(int stream_index)
 			break;
 		case AV_CODEC_ID_VC1:
 			ALOGV("VC1");
-			meta->setCString(kKeyMIMEType, MEDIA_MIMETYPE_VIDEO_WMV);
+			meta->setCString(kKeyMIMEType, MEDIA_MIMETYPE_VIDEO_VC1);
 			meta->setData(kKeyRawCodecSpecificData, 0, avctx->extradata, avctx->extradata_size);
 			meta->setInt32(kKeyWMVVersion, 0);
 			meta->setInt32( kKeyFFCodecTag, avctx->codec_tag );
@@ -1981,9 +1981,9 @@ void FFmpegExtractor::stopSeekMonitor()
 
 static int64_t __gettime(void)
 {
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
-    return (int64_t)tv.tv_sec * 1000000 + tv.tv_usec;
+	struct timeval tv;
+	gettimeofday(&tv, NULL);
+	return (int64_t)tv.tv_sec * 1000000 + tv.tv_usec;
 }
 
 void *FFmpegExtractor::SeekMonitorThreadStub(void*me){
@@ -2028,7 +2028,7 @@ void FFmpegExtractor::readerEntry() {
 //	int eof = 0;
 	mEOF2 = false;
 	int hangCheckCount = 0;
-	bool bNeedFirstVideoKey = false;	
+	bool bNeedFirstVideoKey = false;
 
 	ALOGV("FFmpegExtractor::readerEntry");
 
@@ -2100,16 +2100,16 @@ void FFmpegExtractor::readerEntry() {
 				{
 					hangCheckCount++;
 				}
-				
+
 				if(hangCheckCount > 100*3)  //(10*300)ms
 				{
 					ALOGD("occur hangCheck!!!");
-					mEOF2 = true;						
+					mEOF2 = true;
 				}
 				else
 				{
 					continue;
-				}				
+				}
 		}
 		hangCheckCount = 0;
 
@@ -2685,68 +2685,68 @@ bool SniffFFMPEG( const sp<DataSource> &source, String8 *mimeType, float *confid
 
 
 static status_t addVorbisCodecInfo(
-        const sp<MetaData> &meta,
-        const void *_codecPrivate, size_t codecPrivateSize) {
-    // hexdump(_codecPrivate, codecPrivateSize);
+		const sp<MetaData> &meta,
+		const void *_codecPrivate, size_t codecPrivateSize) {
+	// hexdump(_codecPrivate, codecPrivateSize);
 
-    if (codecPrivateSize < 1) {
-        return ERROR_MALFORMED;
-    }
+	if (codecPrivateSize < 1) {
+		return ERROR_MALFORMED;
+	}
 
-    const uint8_t *codecPrivate = (const uint8_t *)_codecPrivate;
+	const uint8_t *codecPrivate = (const uint8_t *)_codecPrivate;
 
-    if (codecPrivate[0] != 0x02) {
-        return ERROR_MALFORMED;
-    }
+	if (codecPrivate[0] != 0x02) {
+		return ERROR_MALFORMED;
+	}
 
-    // codecInfo starts with two lengths, len1 and len2, that are
-    // "Xiph-style-lacing encoded"...
+	// codecInfo starts with two lengths, len1 and len2, that are
+	// "Xiph-style-lacing encoded"...
 
-    size_t offset = 1;
-    size_t len1 = 0;
-    while (offset < codecPrivateSize && codecPrivate[offset] == 0xff) {
-        len1 += 0xff;
-        ++offset;
-    }
-    if (offset >= codecPrivateSize) {
-        return ERROR_MALFORMED;
-    }
-    len1 += codecPrivate[offset++];
+	size_t offset = 1;
+	size_t len1 = 0;
+	while (offset < codecPrivateSize && codecPrivate[offset] == 0xff) {
+		len1 += 0xff;
+		++offset;
+	}
+	if (offset >= codecPrivateSize) {
+		return ERROR_MALFORMED;
+	}
+	len1 += codecPrivate[offset++];
 
-    size_t len2 = 0;
-    while (offset < codecPrivateSize && codecPrivate[offset] == 0xff) {
-        len2 += 0xff;
-        ++offset;
-    }
-    if (offset >= codecPrivateSize) {
-        return ERROR_MALFORMED;
-    }
-    len2 += codecPrivate[offset++];
+	size_t len2 = 0;
+	while (offset < codecPrivateSize && codecPrivate[offset] == 0xff) {
+		len2 += 0xff;
+		++offset;
+	}
+	if (offset >= codecPrivateSize) {
+		return ERROR_MALFORMED;
+	}
+	len2 += codecPrivate[offset++];
 
-    if (codecPrivateSize < offset + len1 + len2) {
-        return ERROR_MALFORMED;
-    }
+	if (codecPrivateSize < offset + len1 + len2) {
+		return ERROR_MALFORMED;
+	}
 
-    if (codecPrivate[offset] != 0x01) {
-        return ERROR_MALFORMED;
-    }
-    meta->setData(kKeyVorbisInfo, 0, &codecPrivate[offset], len1);
+	if (codecPrivate[offset] != 0x01) {
+		return ERROR_MALFORMED;
+	}
+	meta->setData(kKeyVorbisInfo, 0, &codecPrivate[offset], len1);
 
-    offset += len1;
-    if (codecPrivate[offset] != 0x03) {
-        return ERROR_MALFORMED;
-    }
+	offset += len1;
+	if (codecPrivate[offset] != 0x03) {
+		return ERROR_MALFORMED;
+	}
 
-    offset += len2;
-    if (codecPrivate[offset] != 0x05) {
-        return ERROR_MALFORMED;
-    }
+	offset += len2;
+	if (codecPrivate[offset] != 0x05) {
+		return ERROR_MALFORMED;
+	}
 
-    meta->setData(
-            kKeyVorbisBooks, 0, &codecPrivate[offset],
-            codecPrivateSize - offset);
+	meta->setData(
+			kKeyVorbisBooks, 0, &codecPrivate[offset],
+			codecPrivateSize - offset);
 
-    return OK;
+	return OK;
 }
 
 }  // namespace android
