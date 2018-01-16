@@ -2032,6 +2032,8 @@ void FFmpegExtractor::readerEntry() {
 			ret = avformat_seek_file(mFormatCtx, -1, INT64_MIN, mSeekPos, INT64_MAX, mSeekFlags);
 			stopSeekMonitor();
 			if (ret < 0) {
+				mFormatCtx->ctx_flags |= 0x1000;
+				mbMakeEOS = true;
 				ALOGE("%s: error while seeking", mFormatCtx->filename);
 				mEOF2 = true;
 				goto fail;
