@@ -60,6 +60,8 @@
 #define ALIGN(X,N)      ( ((X)+N-1) & (~(N-1)) )
 #endif
 
+int ion_open();
+
 //	Default Recomanded Functions for Implementation Components
 static OMX_ERRORTYPE NX_VidEncGetParameter			( OMX_HANDLETYPE hComp, OMX_INDEXTYPE nParamIndex,OMX_PTR ComponentParamStruct);
 static OMX_ERRORTYPE NX_VidEncSetParameter			( OMX_HANDLETYPE hComp, OMX_INDEXTYPE nParamIndex, OMX_PTR ComponentParamStruct);
@@ -72,12 +74,52 @@ static void NX_VidEncCommandProc( NX_BASE_COMPNENT *pBaseComp, OMX_COMMANDTYPE C
 static OMX_S32		gstNumInstance = 0;
 static OMX_S32		gstMaxInstance = 2;
 
-
 static OMX_S32 EncoderOpen(NX_VIDENC_COMP_TYPE *pEncComp);
 static OMX_S32 EncoderInit(NX_VIDENC_COMP_TYPE *pEncComp, NX_VID_MEMORY_INFO *pInputMem);
 static OMX_S32 EncoderClose(NX_VIDENC_COMP_TYPE *pEncComp);
 static OMX_S32 EncodeFrame(NX_VIDENC_COMP_TYPE *pEncComp, NX_QUEUE *pInQueue, NX_QUEUE *pOutQueue);
 
+static int32_t NX_V4l2GetPlaneNum( uint32_t iFourcc )
+{
+	int32_t iPlane = 0;
+	switch( iFourcc )
+	{
+		case V4L2_PIX_FMT_YUV420:
+		case V4L2_PIX_FMT_YUV420M:
+		case V4L2_PIX_FMT_YVU420:
+		case V4L2_PIX_FMT_YVU420M:
+		case V4L2_PIX_FMT_YUV422P:
+		case V4L2_PIX_FMT_YUV422M:
+		case V4L2_PIX_FMT_YUV444:
+		case V4L2_PIX_FMT_YUV444M:
+			iPlane = 3;
+			break;
+
+		case V4L2_PIX_FMT_NV12:
+		case V4L2_PIX_FMT_NV12M:
+		case V4L2_PIX_FMT_NV21:
+		case V4L2_PIX_FMT_NV21M:
+		case V4L2_PIX_FMT_NV16:
+		case V4L2_PIX_FMT_NV16M:
+		case V4L2_PIX_FMT_NV61:
+		case V4L2_PIX_FMT_NV61M:
+		case V4L2_PIX_FMT_NV24:
+		case V4L2_PIX_FMT_NV24M:
+		case V4L2_PIX_FMT_NV42:
+		case V4L2_PIX_FMT_NV42M:
+			iPlane = 2;
+			break;
+
+		case V4L2_PIX_FMT_GREY:
+			iPlane = 1;
+			break;
+
+		default:
+			break;
+	}
+
+	return iPlane;
+}
 
 static void SetDefaultMp4EncParam( OMX_VIDEO_PARAM_MPEG4TYPE *mp4Type, int portIndex )
 {
@@ -1341,6 +1383,7 @@ static OMX_S32 EncodeFrame(NX_VIDENC_COMP_TYPE *pEncComp, NX_QUEUE *pInQueue, NX
 	OMX_S32 *recodingBuffer = NULL;
 	gralloc_module_t const *mAllocMod = NULL;
 	hw_module_t const *module = NULL;
+	int64_t  inTimeStamp = 0;
 	FUNC_IN;
 
 	memset(&encIn, 0, sizeof(NX_V4L2ENC_IN));
@@ -1352,6 +1395,8 @@ static OMX_S32 EncodeFrame(NX_VIDENC_COMP_TYPE *pEncComp, NX_QUEUE *pInQueue, NX
 		return 0;
 	}
 
+	inTimeStamp = pInBuf->nTimeStamp;
+
 	//	Receive EOS & Have no Input Buffer.
 	if( pInBuf->nFlags & OMX_BUFFERFLAG_EOS && pInBuf->nFilledLen <= 0 )
 	{
@@ -1360,7 +1405,7 @@ static OMX_S32 EncodeFrame(NX_VIDENC_COMP_TYPE *pEncComp, NX_QUEUE *pInQueue, NX
 
 		NX_PopQueue( pOutQueue, (void**)&pOutBuf );
 		pOutBuf->nOffset = 0;
-		pOutBuf->nTimeStamp = pInBuf->nTimeStamp;
+		pOutBuf->nTimeStamp = inTimeStamp;
 		pOutBuf->nFilledLen = 0;
 		pOutBuf->nFlags = pInBuf->nFlags;
 		pEncComp->pCallbacks->FillBufferDone( pEncComp, pEncComp->hComp->pApplicationPrivate, pOutBuf );
@@ -1398,24 +1443,31 @@ static OMX_S32 EncodeFrame(NX_VIDENC_COMP_TYPE *pEncComp, NX_QUEUE *pInQueue, NX
 		//if( pEncComp->bUseNativeBuffer == OMX_FALSE && pEncComp->inputFormat.eColorFormat == OMX_COLOR_FormatAndroidOpaque )
 		hPrivate = (struct private_handle_t const *)recodingBuffer[1];
 
-		if( (uint32_t)hPrivate->stride >= (pEncComp->encWidth*4) )
+		if( (uint32_t)hPrivate->stride >= (pEncComp->encWidth*4) ||
+			(HAL_PIXEL_FORMAT_RGBX_8888 == hPrivate->format)
+			)
 		{
-#if 1
-			return -1;
-#else
+			uint8_t *pInData = NULL;
 
-			NX_VID_MEMORY_INFO memInfo;
-			uint8_t *inData = NULL;
-			memset( &memInfo, 0, sizeof(NX_VID_MEMORY_INFO) );
-			NX_PrivateHandleToVideoMemory(hPrivate, &memInfo);
-			NX_MapVideoMemory(&memInfo);
-			inData = memInfo.pBuffer[0];
+			int ion_fd = ion_open();
+			if( ion_fd<0 )
+			{
+				ALOGE("%s: failed to ion_open", __func__);
+				return ion_fd;
+			}
+			pInData = mmap(NULL, hPrivate->size, PROT_READ|PROT_WRITE, MAP_SHARED, hPrivate->share_fd, 0);
+			if( pInData == MAP_FAILED )
+			{
+				ALOGE("%s: failed to mmap", __func__);
+				close(ion_fd);
+				return -1;
+			}
 
 			//	CSC
 			if( pEncComp->hCSCMem == NULL )
 			{
-				// pEncComp->hCSCMem = NX_VideoAllocateMemory( 4096, pEncComp->encWidth, pEncComp->encHeight, NX_MEM_MAP_LINEAR, FOURCC_NV12 );
-				pEncComp->hCSCMem = NX_AllocateVideoMemory( pEncComp->encWidth, pEncComp->encHeight, IMG_PLANE_NUM, V4L2_PIX_FMT_NV12M, 4096 );
+				pEncComp->hCSCMem = NX_AllocateVideoMemory( pEncComp->encWidth, pEncComp->encHeight, NX_V4l2GetPlaneNum(V4L2_PIX_FMT_NV12M), V4L2_PIX_FMT_NV12M, 4096 );
+				NX_MapVideoMemory(pEncComp->hCSCMem);
 			}
 
 			if( pEncComp->hCSCMem )
@@ -1423,22 +1475,19 @@ static OMX_S32 EncodeFrame(NX_VIDENC_COMP_TYPE *pEncComp, NX_QUEUE *pInQueue, NX
 				OMX_U8 *plu = pEncComp->hCSCMem->pBuffer[0];
 				OMX_U8 *pcb = pEncComp->hCSCMem->pBuffer[1];
 
-				NX_MapVideoMemory(pEncComp->hCSCMem);
-
 				//struct timeval start, end;
 				//gettimeofday( &start, NULL );
-				mAllocMod->lock(mAllocMod, (void*)hPrivate, GRALLOC_USAGE_SW_READ_OFTEN, 0, 0, hPrivate->stride, hPrivate->height, (void*)inData);
-				cscARGBToNV21( (char*)inData, (char*)plu, (char*)pcb, pEncComp->encWidth, pEncComp->encHeight, 1, pEncComp->threadNum);
+				mAllocMod->lock(mAllocMod, (void*)hPrivate, GRALLOC_USAGE_SW_READ_OFTEN, 0, 0, hPrivate->stride, hPrivate->height, (void*)pInData);
+				cscARGBToNV21( (char*)pInData, (char*)plu, (char*)pcb, pEncComp->encWidth, pEncComp->encHeight, 1, pEncComp->threadNum);
 				mAllocMod->unlock(mAllocMod, (void*)hPrivate);
 				//gettimeofday( &end, NULL );
 				//uint32_t value = (end.tv_sec - start.tv_sec)*1000 + (end.tv_usec - start.tv_usec)/1000;
 				//DbgMsg("~~~~TimeStamp = %d msec\n", value);
-//				memset( &inputMem, 0, sizeof(inputMem) );
 				memcpy(&inputMem, pEncComp->hCSCMem, sizeof(inputMem) );
-				NX_UnmapVideoMemory(pEncComp->hCSCMem);
 			}
-			NX_UnmapVideoMemory(&memInfo);
-#endif
+
+			munmap( pInData, hPrivate->size );
+			close(ion_fd);
 		}
 		//
 		//	Data Format :
@@ -1447,8 +1496,7 @@ static OMX_S32 EncodeFrame(NX_VIDENC_COMP_TYPE *pEncComp, NX_QUEUE *pInQueue, NX
 		//
 		else if( pEncComp->bUseNativeBuffer == OMX_TRUE || pEncComp->bMetaDataInBuffers == OMX_TRUE )
 		{
-	        NX_PrivateHandleToVideoMemory(hPrivate, &inputMem);
-
+			NX_PrivateHandleToVideoMemory(hPrivate, &inputMem);
 		}
 	}
 	//
@@ -1456,20 +1504,14 @@ static OMX_S32 EncodeFrame(NX_VIDENC_COMP_TYPE *pEncComp, NX_QUEUE *pInQueue, NX
 	//
 	else
 	{
-#if 1
-		return -1;
-#else
 		NX_VID_MEMORY_INFO memInfo;
-		uint8_t *inData = NULL;
 		memset( &memInfo, 0, sizeof(NX_VID_MEMORY_INFO) );
-		NX_PrivateHandleToVideoMemory(hPrivate, &memInfo);
-		NX_MapVideoMemory(&memInfo);
-		inData = memInfo.pBuffer[0];
 
 		//	CSC
 		if( pEncComp->hCSCMem == NULL )
 		{
-			pEncComp->hCSCMem = NX_AllocateVideoMemory( pEncComp->encWidth, pEncComp->encHeight, inputMem.planes, inputMem.format, 4096 );
+			pEncComp->hCSCMem = NX_AllocateVideoMemory( pEncComp->encWidth, pEncComp->encHeight, NX_V4l2GetPlaneNum(V4L2_PIX_FMT_YUV420), V4L2_PIX_FMT_YUV420, 4096 );
+			NX_MapVideoMemory( pEncComp->hCSCMem );
 		}
 		if( pEncComp->hCSCMem )
 		{
@@ -1480,8 +1522,6 @@ static OMX_S32 EncodeFrame(NX_VIDENC_COMP_TYPE *pEncComp, NX_QUEUE *pInQueue, NX
 			OMX_S32 luStride = 0;
 			OMX_S32 cbStride = 0;
 
-			NX_MapVideoMemory( pEncComp->hCSCMem );
-
 			plu = (OMX_U8 *)pEncComp->hCSCMem->pBuffer[0];
 			pcb = (OMX_U8 *)pEncComp->hCSCMem->pBuffer[1];
 			pcr = (OMX_U8 *)pEncComp->hCSCMem->pBuffer[2];
@@ -1489,24 +1529,16 @@ static OMX_S32 EncodeFrame(NX_VIDENC_COMP_TYPE *pEncComp, NX_QUEUE *pInQueue, NX
 			luStride = pEncComp->hCSCMem->stride[0];
 			cbStride = pEncComp->hCSCMem->stride[1];
 
-			char *srcY = (char*)memInfo.pBuffer[0];
-			char *srcU = (char*)memInfo.pBuffer[1];;
-			char *srcV = (char*)memInfo.pBuffer[2];;
-			// cscYV12ToYV12(  srcY, srcU, srcV,
-			// 				(char*)pEncComp->hCSCMem->luVirAddr, (char*)pEncComp->hCSCMem->cbVirAddr, (char*)pEncComp->hCSCMem->crVirAddr,
-			// 				pEncComp->encWidth, pEncComp->hCSCMem->luStride, pEncComp->hCSCMem->cbStride,
-			// 				pEncComp->encWidth, pEncComp->encHeight );
+			char *srcY = (char*)pInBuf->pBuffer;
+			char *srcU = srcY + pEncComp->encWidth * pEncComp->encHeight;
+			char *srcV = srcU + pEncComp->encWidth * pEncComp->encHeight / 4;
 
 			cscYV12ToYV12(  srcY, srcU, srcV,
 							(char*)plu, (char*)pcb, (char*)pcr,
 							pEncComp->encWidth, luStride, cbStride,
-							pEncComp->encWidth, pEncComp->encHeight );			
+							pEncComp->encWidth, pEncComp->encHeight );
 			memcpy(&inputMem, pEncComp->hCSCMem, sizeof(inputMem) );
-
-			NX_UnmapVideoMemory( pEncComp->hCSCMem );
 		}
-		NX_UnmapVideoMemory(&memInfo);
-#endif		
 	}
 
 	if( OMX_FALSE == pEncComp->bInitialized )

@@ -47,7 +47,6 @@ OMX_ERRORTYPE NX_VidDecComponentInit (OMX_HANDLETYPE hComponent);
 #endif
 
 #define MAX_IMAGE_BUFFER_NUM	32
-#define IMG_PLANE_NUM		3
 
 enum {
  	IN_PORT			= 0,
