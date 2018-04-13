@@ -1858,8 +1858,10 @@ int openVideoCodec(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp)
 		case NX_DIV5_DEC:
 		case NX_DIV6_DEC:
 		case NX_DIVX_DEC:
-		case NX_XVID_DEC:
 			pDecComp->DecodeFrame = NX_DecodeMpeg4Frame;
+			break;
+		case NX_XVID_DEC:
+			pDecComp->DecodeFrame = NX_DecodeXvidFrame;
 			break;
 		case NX_DIV3_DEC:
 			pDecComp->DecodeFrame = NX_DecodeDiv3Frame;
