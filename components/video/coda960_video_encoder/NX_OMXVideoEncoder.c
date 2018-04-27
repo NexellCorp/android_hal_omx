@@ -1329,14 +1329,14 @@ static OMX_S32 EncoderInit(NX_VIDENC_COMP_TYPE *pEncComp, NX_VID_MEMORY_INFO *pI
 	if (pEncComp->vpuCodecId == NX_JPEG_ENC)
 		encInitParam.jpgQuality = (encInitParam.initialQp == 0) ? (90) : (encInitParam.initialQp);
 
-	if( 0 < NX_V4l2EncInit( pEncComp->hVpuCodec, &encInitParam ) )
+	if( 0 > NX_V4l2EncInit( pEncComp->hVpuCodec, &encInitParam ) )
 	{
 		ErrMsg("NX_V4l2EncInit() failed\n");
 		return -1;
 	}
 
 
-	if( 0 < NX_V4l2EncGetSeqInfo( pEncComp->hVpuCodec, &pSeqBuf, &pEncComp->seqBufSize ) )
+	if( 0 > NX_V4l2EncGetSeqInfo( pEncComp->hVpuCodec, &pSeqBuf, &pEncComp->seqBufSize ) )
 	{
 		ErrMsg("NX_V4l2EncGetSeqInfo() failed\n");
 		return -1;
@@ -1444,7 +1444,8 @@ static OMX_S32 EncodeFrame(NX_VIDENC_COMP_TYPE *pEncComp, NX_QUEUE *pInQueue, NX
 		hPrivate = (struct private_handle_t const *)recodingBuffer[1];
 
 		if( (uint32_t)hPrivate->stride >= (pEncComp->encWidth*4) ||
-			(HAL_PIXEL_FORMAT_RGBX_8888 == hPrivate->format)
+			(HAL_PIXEL_FORMAT_RGBX_8888 == hPrivate->format) ||
+			(HAL_PIXEL_FORMAT_RGBA_8888 == hPrivate->format)
 			)
 		{
 			uint8_t *pInData = NULL;
@@ -1474,11 +1475,14 @@ static OMX_S32 EncodeFrame(NX_VIDENC_COMP_TYPE *pEncComp, NX_QUEUE *pInQueue, NX
 			{
 				OMX_U8 *plu = pEncComp->hCSCMem->pBuffer[0];
 				OMX_U8 *pcb = pEncComp->hCSCMem->pBuffer[1];
+				OMX_S32 luStride = pEncComp->hCSCMem->stride[0];
+				OMX_S32 cbStride = pEncComp->hCSCMem->stride[1];
 
 				//struct timeval start, end;
 				//gettimeofday( &start, NULL );
 				mAllocMod->lock(mAllocMod, (void*)hPrivate, GRALLOC_USAGE_SW_READ_OFTEN, 0, 0, hPrivate->stride, hPrivate->height, (void*)pInData);
-				cscARGBToNV21( (char*)pInData, (char*)plu, (char*)pcb, pEncComp->encWidth, pEncComp->encHeight, 1, pEncComp->threadNum);
+				cscARGBToNV21((char*)pInData, (char*)plu, (char*)pcb, pEncComp->encWidth, pEncComp->encHeight,
+				  				luStride, cbStride,	1, pEncComp->threadNum);
 				mAllocMod->unlock(mAllocMod, (void*)hPrivate);
 				//gettimeofday( &end, NULL );
 				//uint32_t value = (end.tv_sec - start.tv_sec)*1000 + (end.tv_usec - start.tv_usec)/1000;
