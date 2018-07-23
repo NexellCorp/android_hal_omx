@@ -1555,7 +1555,12 @@ static void NX_VidDec_CommandProc( NX_BASE_COMPNENT *pBaseComp, OMX_COMMANDTYPE 
 			nData2 = nParam1;
 			//NX_PostSem( pDecComp->hBufCtrlSem );
 			pDecComp->bIsPortDisable = OMX_TRUE;
-			NX_PendSem( pDecComp->hPortCtrlSem );
+			
+			if( 0 != pDecComp->pOutputPort->nAllocatedBuf)
+			{
+				NX_PendSem( pDecComp->hPortCtrlSem );
+			}
+
 			pDecComp->bIsPortDisable = OMX_FALSE;
 			pthread_mutex_unlock( &pDecComp->hBufMutex );
 

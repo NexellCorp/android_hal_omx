@@ -53,6 +53,12 @@ static int AVCCheckPortReconfiguration( NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, OMX
 							{
 								if( pDecComp->width != coded_width || pDecComp->height != coded_height )
 								{
+									int32_t diff = coded_height - pDecComp->height;
+									if(16 > diff) //16 align
+									{
+										break;
+									}
+
 									//	Change Port Format & Resolution Information
 									DbgMsg("New Video Resolution. = %ld x %ld --> %d x %d\n", pDecComp->width, pDecComp->height, coded_width, coded_height);
 									pDecComp->pOutputPort->stdPortDef.format.video.nFrameWidth  = pDecComp->width  = coded_width;
@@ -190,6 +196,12 @@ int NX_DecodeAvcFrame(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_QUEUE *pInQueue, N
 							{
 								if( pDecComp->width != coded_width || pDecComp->height != coded_height )
 								{
+									int32_t diff = coded_height - pDecComp->height;
+									if(16 > diff) //16 align
+									{
+										goto Exit;
+									}
+
 									//	Change Port Format & Resolution Information
 									DbgMsg("New Video Resolution...= %ld x %ld --> %d x %d\n", pDecComp->width, pDecComp->height, coded_width, coded_height);
 									pDecComp->pOutputPort->stdPortDef.format.video.nFrameWidth  = coded_width;
