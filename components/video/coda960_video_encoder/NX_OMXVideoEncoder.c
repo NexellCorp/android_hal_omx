@@ -907,7 +907,7 @@ static OMX_ERRORTYPE NX_VidEncStateTransition( NX_VIDENC_COMP_TYPE *pEncComp, OM
 				//	Create buffer management thread
 				pthread_create( &pEncComp->hBufThread, NULL, (void*)&NX_VidEncBufferMgmtThread , pEncComp );
 				//	Wait thread creation
-				NX_PendSem(pEncComp->hBufCtrlSem);
+				// NX_PendSem(pEncComp->hBufCtrlSem);
 				pEncComp->eCurState = eNewState;
 				break;
 			case OMX_StateWaitForResources:
@@ -1154,7 +1154,7 @@ static void NX_VidEncCommandProc( NX_BASE_COMPNENT *pBaseComp, OMX_COMMANDTYPE C
 			}
 
 			//	Step 1. The component shall return the buffers with a call to EmptyBufferDone/FillBufferDone,
-			NX_PendSem( pEncComp->hBufCtrlSem );
+			// NX_PendSem( pEncComp->hBufCtrlSem );
 			if( OMX_ALL == nParam1 ){
 				//	Disable all ports
 			}else{
@@ -1163,21 +1163,21 @@ static void NX_VidEncCommandProc( NX_BASE_COMPNENT *pBaseComp, OMX_COMMANDTYPE C
 			}
 			pEncComp->inUsableBuffers = 0;
 			TRACE("NX_VidEncCommandProc : OMX_CommandPortDisable \n");
-			NX_PostSem( pEncComp->hBufCtrlSem );
+			// NX_PostSem( pEncComp->hBufCtrlSem );
 			break;
 		}
 		case OMX_CommandPortEnable:  // Enable a port on a component.
 		{
-			NX_PendSem( pEncComp->hBufCtrlSem );
+			// NX_PendSem( pEncComp->hBufCtrlSem );
 			TRACE("NX_VidEncCommandProc : OMX_CommandPortEnable \n");
 			NX_PostSem( pEncComp->hBufCtrlSem );
 			break;
 		}
 		case OMX_CommandMarkBuffer:  // Mark a component/buffer for observation
 		{
-			NX_PendSem( pEncComp->hBufCtrlSem );
+			// NX_PendSem( pEncComp->hBufCtrlSem );
 			TRACE("NX_VidEncCommandProc : OMX_CommandMarkBuffer \n");
-			NX_PostSem( pEncComp->hBufCtrlSem );
+			// NX_PostSem( pEncComp->hBufCtrlSem );
 			break;
 		}
 		default:
@@ -1237,6 +1237,14 @@ static void NX_VidEncBufferMgmtThread( void *arg )
 			if( NX_THREAD_CMD_RUN != pEncComp->eCmdBufThread ){
 				break;
 			}
+
+			if( pEncComp->pOutputPort->stdPortDef.bEnabled != OMX_TRUE || pEncComp->pInputPort->stdPortDef.bEnabled != OMX_TRUE )
+			{
+				//	Break Out & Wait Thread Control Signal
+				NX_PostSem( pEncComp->hBufChangeSem );
+				break;
+			}
+
 			//	check input buffer first
 			pthread_mutex_lock( &pEncComp->hBufMutex );
 			if( NX_GetQueueCnt(pEncComp->pInputPortQueue)>0 && NX_GetQueueCnt(pEncComp->pOutputPortQueue)>0 ){
@@ -1266,6 +1274,7 @@ static OMX_S32 EncoderOpen(NX_VIDENC_COMP_TYPE *pEncComp)
 	OMX_PARAM_PORTDEFINITIONTYPE *pInPortDef = (OMX_PARAM_PORTDEFINITIONTYPE *)pEncComp->pPort[0];	//	Find Input Port Definition
 	pEncComp->encWidth = pInPortDef->format.video.nFrameWidth;
 	pEncComp->encHeight = pInPortDef->format.video.nFrameHeight;
+	FUNC_IN;
 
 	// add by kshblue (14.07.04)
 	if ( pEncComp->encWidth == 0 || pEncComp->encHeight == 0)
@@ -1285,6 +1294,7 @@ static OMX_S32 EncoderOpen(NX_VIDENC_COMP_TYPE *pEncComp)
 		ErrMsg("NX_V4l2EncOpen() failed\n");
 		return -1;
 	}
+	FUNC_OUT;
 
 	return 0;
 }
@@ -1293,7 +1303,7 @@ static OMX_S32 EncoderInit(NX_VIDENC_COMP_TYPE *pEncComp, NX_VID_MEMORY_INFO *pI
 {
 	NX_V4L2ENC_PARA encInitParam;
 	uint8_t *pSeqBuf;
-
+	FUNC_IN;
 
 	memset(&encInitParam, 0, sizeof(encInitParam));
 
@@ -1349,12 +1359,15 @@ static OMX_S32 EncoderInit(NX_VIDENC_COMP_TYPE *pEncComp, NX_VID_MEMORY_INFO *pI
 		DbgMsg("Sequrnce buffer Size = %d\n", pEncComp->seqBufSize );
 		pEncComp->bCodecSpecificInfo = OMX_TRUE;
 	}
+	FUNC_OUT;
 
 	return 0;
 }
 
 static OMX_S32 EncoderClose(NX_VIDENC_COMP_TYPE *pEncComp)
 {
+	FUNC_IN;
+
 	if( pEncComp->hVpuCodec )
 	{
 		NX_V4l2EncClose( pEncComp->hVpuCodec );
@@ -1369,6 +1382,7 @@ static OMX_S32 EncoderClose(NX_VIDENC_COMP_TYPE *pEncComp)
 
 	pEncComp->bInitialized = OMX_FALSE;
 
+	FUNC_OUT;
 	return 0;
 }
 
@@ -1483,11 +1497,11 @@ static OMX_S32 EncodeFrame(NX_VIDENC_COMP_TYPE *pEncComp, NX_QUEUE *pInQueue, NX
 				mAllocMod->lock(mAllocMod, (void*)hPrivate, GRALLOC_USAGE_SW_READ_OFTEN, 0, 0, hPrivate->stride, hPrivate->height, (void*)pInData);
 				cscARGBToNV21((char*)pInData, (char*)plu, (char*)pcb, pEncComp->encWidth, pEncComp->encHeight,
 				  				luStride, cbStride,	1, pEncComp->threadNum);
-				mAllocMod->unlock(mAllocMod, (void*)hPrivate);
 				//gettimeofday( &end, NULL );
 				//uint32_t value = (end.tv_sec - start.tv_sec)*1000 + (end.tv_usec - start.tv_usec)/1000;
 				//DbgMsg("~~~~TimeStamp = %d msec\n", value);
 				memcpy(&inputMem, pEncComp->hCSCMem, sizeof(inputMem) );
+				mAllocMod->unlock(mAllocMod, (void*)hPrivate);
 			}
 
 			munmap( pInData, hPrivate->size );
@@ -1603,7 +1617,7 @@ static OMX_S32 EncodeFrame(NX_VIDENC_COMP_TYPE *pEncComp, NX_QUEUE *pInQueue, NX
 
 	NxMemcpy(pOutBuf->pBuffer, encOut.strmBuf, encOut.strmSize);
 	pOutBuf->nOffset = 0;
-	pOutBuf->nTimeStamp = pInBuf->nTimeStamp;
+	pOutBuf->nTimeStamp = inTimeStamp;
 	pOutBuf->nFilledLen = encOut.strmSize;
 
 	TRACE("Encoder : nTimeStamp(%lld), outLength(%ld) \n", pOutBuf->nTimeStamp, pOutBuf->nFilledLen);
