@@ -333,7 +333,6 @@ static OMX_ERRORTYPE NX_VidDec_GetConfig(OMX_HANDLETYPE hComp, OMX_INDEXTYPE nCo
 					pRect->nWidth = pDecComp->dsp_width;
 					pRect->nHeight = pDecComp->dsp_height;
 				}
-
 			}
 			TRACE("%s() : width(%ld), height(%ld)\n ", __func__, pRect->nWidth, pRect->nHeight );
 			break;
@@ -1604,7 +1603,12 @@ static void NX_VidDec_CommandProc( NX_BASE_COMPNENT *pBaseComp, OMX_COMMANDTYPE 
 			nData2 = nParam1;
 			//NX_PostSem( pDecComp->hBufCtrlSem );
 			pDecComp->bIsPortDisable = OMX_TRUE;
-			NX_PendSem( pDecComp->hPortCtrlSem );
+			
+			if( 0 != pDecComp->pOutputPort->nAllocatedBuf)
+			{
+				NX_PendSem( pDecComp->hPortCtrlSem );
+			}
+
 			pDecComp->bIsPortDisable = OMX_FALSE;
 			pthread_mutex_unlock( &pDecComp->hBufMutex );
 
@@ -2068,8 +2072,8 @@ int InitializeCodaVpu(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, unsigned char *buf, i
 			OMX_VIDEO_PORTDEFINITIONTYPE *pVideoFormat = &pOutPort->format.video;
 			pVideoFormat->eColorFormat = (OMX_COLOR_FORMATTYPE)HAL_PIXEL_FORMAT_YV12;
 			pVideoFormat->cMIMEType = "video/raw";
-			pVideoFormat->nFrameWidth = seqOut.width;
-			pVideoFormat->nFrameHeight = seqOut.height;
+			pVideoFormat->nFrameWidth = seqOut.dispInfo.dispRight;
+			pVideoFormat->nFrameHeight = seqOut.dispInfo.dispBottom;
 			pDecComp->dsp_width = seqOut.dispInfo.dispRight;
 			pDecComp->dsp_height = seqOut.dispInfo.dispBottom;
 			if( OMX_TRUE == pDecComp->bUseNativeBuffer )
@@ -2079,9 +2083,16 @@ int InitializeCodaVpu(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, unsigned char *buf, i
 
 				if( (seqOut.width != nativeBufWidth) || (seqOut.height != nativeBufHeight) )
 				{
-					DbgMsg("[%ld] <<< seqOut.width(%d) != nativeBufWidth(%d), seqOut.height(%d) != nativeBufHeight(%d)\n",
-						pDecComp->instanceId, seqOut.width, nativeBufWidth, seqOut.height, nativeBufHeight);
-					pDecComp->bPortReconfigure = OMX_TRUE;
+					int32_t diff = seqOut.height - seqOut.dispInfo.dispBottom;
+					DbgMsg(">>>>>><<< diff(%d) = seqOut.height(%d) - seqOut.dispInfo.dispBottom(%d)\n",diff, seqOut.height, seqOut.dispInfo.dispBottom);
+					if(16 <= diff)	//16 align <= diff
+					{
+						DbgMsg("[%ld] <<< seqOut.width(%d) != nativeBufWidth(%d), seqOut.height(%d) != nativeBufHeight(%d)\n",
+							pDecComp->instanceId, seqOut.width, nativeBufWidth, seqOut.height, nativeBufHeight);
+						pVideoFormat->nFrameWidth = seqOut.width;
+						pVideoFormat->nFrameHeight = seqOut.height;
+						pDecComp->bPortReconfigure = OMX_TRUE;
+					}
 				}
 			}
 			else
