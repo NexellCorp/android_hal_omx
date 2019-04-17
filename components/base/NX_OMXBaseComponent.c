@@ -136,14 +136,14 @@ OMX_ERRORTYPE NX_BaseGetConfig (OMX_HANDLETYPE hComp, OMX_INDEXTYPE nConfigIndex
 	UNUSED_PARAM(hComp);
 	UNUSED_PARAM(nConfigIndex);
 	UNUSED_PARAM(pComponentConfigStructure);
-	return OMX_ErrorNone;
+	return OMX_ErrorNotImplemented;
 }
 OMX_ERRORTYPE NX_BaseSetConfig (OMX_HANDLETYPE hComp, OMX_INDEXTYPE nConfigIndex, OMX_PTR pComponentConfigStructure)
 {
 	UNUSED_PARAM(hComp);
 	UNUSED_PARAM(nConfigIndex);
 	UNUSED_PARAM(pComponentConfigStructure);
-	return OMX_ErrorNone;
+	return OMX_ErrorNotImplemented;
 }
 OMX_ERRORTYPE NX_BaseGetExtensionIndex(OMX_HANDLETYPE hComponent, OMX_STRING cParameterName, OMX_INDEXTYPE* pIndexType)
 {
