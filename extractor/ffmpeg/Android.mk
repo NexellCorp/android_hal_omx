@@ -9,7 +9,14 @@ OMX_TOP			:= $(NX_HW_TOP)/omx
 FFMPEG_PATH		:= $(OMX_TOP)/codec/ffmpeg
 
 LOCAL_MODULE	:= libNX_FFMpegExtractor
+
+ANDROID_VERSION_STR := $(PLATFORM_VERSION)
+ANDROID_VERSION := $(firstword $(ANDROID_VERSION_STR))
+ifeq ($(ANDROID_VERSION), 9)
+LOCAL_VENDOR_MODULE := true
+else
 LOCAL_MODULE_TAGS := optional
+endif
 
 LOCAL_SRC_FILES :=			\
         FFmpegExtractor.cpp	\

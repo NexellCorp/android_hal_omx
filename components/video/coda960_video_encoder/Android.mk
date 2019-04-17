@@ -2,18 +2,21 @@ LOCAL_PATH:= $(call my-dir)
 
 include $(CLEAR_VARS)
 
-LOCAL_MODULE_TAGS := optional
-
 LOCAL_PRELINK_MODULE := false
 
 NX_HW_TOP := $(TOP)/hardware/nexell/s5pxx18
 NX_HW_INCLUDE := $(NX_HW_TOP)/include
 NX_LIBRARY_TOP := $(TOP)/device/nexell/library
 
-ANDROID_VERSION_STR := $(subst ., ,$(PLATFORM_VERSION))
-ANDROID_VERSION_MAJOR := $(firstword $(ANDROID_VERSION_STR))
+ANDROID_VERSION_STR := $(PLATFORM_VERSION)
+ANDROID_VERSION := $(firstword $(ANDROID_VERSION_STR))
+ifeq ($(ANDROID_VERSION), 9)
+LOCAL_VENDOR_MODULE := true
+else
+LOCAL_MODULE_TAGS := optional
+endif
 
-ifeq "7" "$(ANDROID_VERSION_MAJOR)"
+ifeq "7" "$(ANDROID_VERSION)"
 $( === This is NOUGAT ===)
 LOCAL_CFLAGS += -DNOUGAT=1
 endif
@@ -50,6 +53,10 @@ LOCAL_SHARED_LIBRARIES := \
 	libion \
 	libutils \
 	libnx_csc
+
+ifeq ($(ANDROID_VERSION), 9)
+LOCAL_HEADER_LIBRARIES := media_plugin_headers
+endif
 
 LOCAL_CFLAGS += -Wno-multichar -Werror -Wno-error=deprecated-declarations -Wall
 LOCAL_CFLAGS += $(NX_OMX_CFLAGS)

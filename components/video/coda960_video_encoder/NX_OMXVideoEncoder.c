@@ -1439,7 +1439,7 @@ static OMX_S32 EncodeFrame(NX_VIDENC_COMP_TYPE *pEncComp, NX_QUEUE *pInQueue, NX
 			ErrMsg("Encoding Mode Fail : NativeBuffer(%d), MetaDataInBuffers(%d), InputFormat(0x%08x) !!!\n", pEncComp->bUseNativeBuffer, pEncComp->bMetaDataInBuffers, pEncComp->inputFormat.eColorFormat);
 			return -1;
 		}
-		TRACE("Encoding Mode : NativeBuffer(%ld), MetaDataInBuffers(%ld), InputFormat(0x%08x) !!!\n", pEncComp->bUseNativeBuffer, pEncComp->bMetaDataInBuffers, pEncComp->inputFormat.eColorFormat);
+		TRACE("Encoding Mode : NativeBuffer(%u), MetaDataInBuffers(%u), InputFormat(0x%08x) !!!\n", pEncComp->bUseNativeBuffer, pEncComp->bMetaDataInBuffers, pEncComp->inputFormat.eColorFormat);
 
 		if (hw_get_module(GRALLOC_HARDWARE_MODULE_ID, &module) == 0)
 		{

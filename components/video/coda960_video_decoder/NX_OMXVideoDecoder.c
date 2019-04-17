@@ -1997,6 +1997,16 @@ int InitializeCodaVpu(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, unsigned char *buf, i
 			DbgMsg("%s : OutBufCopy Mode\n", __func__);
 #else
 			pDecComp->bOutBufCopy = OMX_FALSE;
+
+			char value[PROPERTY_VALUE_MAX];
+			if (property_get("videobufcopy.mode", value, "0") )
+			{
+				if ( !strcmp(value, "1") )
+				{
+					pDecComp->bOutBufCopy = OMX_TRUE;
+					DbgMsg("%s : OutBufCopy Mode\n", __func__);
+				}
+			}
 #endif
 			//	Translate Gralloc Memory Buffer Type To Nexell Video Memory Type
 			for( i=0 ; i<iNumCurRegBuf ; i++ )
