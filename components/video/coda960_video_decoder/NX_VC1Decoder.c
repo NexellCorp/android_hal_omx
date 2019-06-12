@@ -414,7 +414,7 @@ int NX_DecodeVC1Frame(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_QUEUE *pInQueue, N
 				OMX_U32 flag;
 				PopVideoTimeStamp(pDecComp, &timestamp, &flag );
 				NX_V4l2DecClrDspFlag( pDecComp->hVpuCodec, NULL, decOut.dispIdx );
-				ErrMsg("Unexpected Buffer Handling!!!! Goto Exit\n");
+				DbgMsg("Unexpected Buffer Handling!!!! Goto Exit\n");
 				goto Exit;
 			}
 			pDecComp->outBufferValidFlag[OutIdx] = 1;
