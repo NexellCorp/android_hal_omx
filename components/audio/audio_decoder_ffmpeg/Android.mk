@@ -45,6 +45,15 @@ LOCAL_SHARED_LIBRARIES := \
 	liblog \
 	libhardware \
 
+ifeq ($(ANDROID_VERSION), 9)
+LOCAL_LDLIBS += $(FFMPEG_PATH)/32bit/libs/libavutil.so
+LOCAL_LDLIBS += $(FFMPEG_PATH)/32bit/libs/libavcodec.so
+LOCAL_LDLIBS += $(FFMPEG_PATH)/32bit/libs/libavformat.so
+LOCAL_LDLIBS += $(FFMPEG_PATH)/32bit/libs/libavdevice.so
+LOCAL_LDLIBS += $(FFMPEG_PATH)/32bit/libs/libavfilter.so
+LOCAL_LDLIBS += $(FFMPEG_PATH)/32bit/libs/libswresample.so
+LOCAL_MODULE_OWNER := arm
+else
 LOCAL_LDFLAGS_32 += \
 	-L$(FFMPEG_PATH)/32bit/libs	\
 	-lavutil 			\
@@ -53,6 +62,7 @@ LOCAL_LDFLAGS_32 += \
 	-lavdevice		\
 	-lavfilter		\
 	-lswresample
+endif
 
 LOCAL_CFLAGS += $(NX_OMX_CFLAGS)
 
