@@ -21,7 +21,14 @@
 #define SUPER_EXTRACTOR_H_
 
 #include <media/stagefright/foundation/ABase.h>
+
+#ifdef PIE
+#include <media/MediaExtractor.h>
+#include <media/stagefright/MetaDataBase.h>
+#else
 #include <media/stagefright/MediaExtractor.h>
+#endif
+
 #include <utils/threads.h>
 #include <utils/KeyedVector.h>
 
@@ -60,13 +67,23 @@ class TrackInfo;
 class FFmpegExtractor : public MediaExtractor
 {
 public:
+#ifdef PIE
+    explicit FFmpegExtractor(DataSourceBase *source);
+#else
     FFmpegExtractor(const sp<DataSource> &source);
+#endif
 
     virtual size_t countTracks();
+#ifdef PIE
+    virtual MediaTrack *getTrack(size_t index);
+    virtual status_t getTrackMetaData(MetaDataBase& meta, size_t index, uint32_t flags);
+    virtual status_t getMetaData(MetaDataBase& meta);
+#else
     virtual sp<IMediaSource> getTrack(size_t index);
     virtual sp<MetaData> getTrackMetaData(size_t index, uint32_t flags);
 
     virtual sp<MetaData> getMetaData();
+#endif
 
     virtual uint32_t flags() const;
 
@@ -80,7 +97,11 @@ private:
 
     mutable Mutex mExtractorLock;
     mutable Mutex mSeekLock;
+#ifdef PIE
+    DataSourceBase *mDataSource;
+#else
     sp<DataSource> mDataSource;
+#endif
     status_t mInitCheck;
 
     KeyedVector<unsigned, sp<TrackInfo> > mTrackMetas;
@@ -133,7 +154,11 @@ private:
     void print_error_ex(const char *filename, int err);
     int initStreams();
     void deInitStreams();
+#ifdef PIE
+    void buildFileName(DataSourceBase *source);
+#else
     void buildFileName(const sp<DataSource> &source);
+#endif
     void setFFmpegDefaultOpts();
     void printTime(int64_t time);
     int stream_component_open(int stream_index);
@@ -172,12 +197,16 @@ private:
     DISALLOW_EVIL_CONSTRUCTORS(FFmpegExtractor);
 };
 
+#ifdef PIE
+bool SniffFFMPEG(DataSourceBase *source, float *confidence);
+#else
 bool SniffFFMPEG(
         const sp<DataSource> &source, String8 *mimeType, float *confidence,
         sp<AMessage> *);
 bool SniffAVIFFMPEG(
         const sp<DataSource> &source, String8 *mimeType, float *confidence,
         sp<AMessage> *);
+#endif
 
 }  // namespace android
 

@@ -18,7 +18,11 @@
 
 #include <stdlib.h>
 
+#if PIE
+#include <media/DataSource.h>
+#else
 #include <media/stagefright/DataSource.h>
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -35,19 +39,31 @@ namespace android {
 class FFSource
 {
 public:
+#ifdef PIE
+	FFSource(DataSourceBase *source);
+#else
 	FFSource(sp<DataSource> source);
+#endif
 	int init_check();
 	int read(unsigned char *buf, size_t size);
 	int64_t seek(int64_t pos, int whence);
 	off64_t getSize();
 	~FFSource();
 protected:
+#ifdef PIE
+	DataSourceBase *mSource;
+#else
 	sp<DataSource> mSource;
+#endif
 	int64_t mOffset;
 	int64_t mSize;
 };
 
+#ifdef PIE
+FFSource::FFSource(DataSourceBase *source)
+#else
 FFSource::FFSource(sp<DataSource> source)
+#endif
 	: mSource(source),
 	mOffset(0)
 {
@@ -117,7 +133,11 @@ static int android_open(URLContext *h, const char *url, int /*flags*/)
 {
 	// the url in form of "android:<DataSource Ptr>",
 	// the DataSource Pointer passed by the ffmpeg extractor
+#ifdef PIE
+	DataSourceBase *source = NULL;
+#else
 	sp<DataSource>* source = NULL;
+#endif
 
 	ALOGD("android source begin open");
 
@@ -134,7 +154,11 @@ static int android_open(URLContext *h, const char *url, int /*flags*/)
 	}
 	ALOGD("ffmpeg open android data source success, source ptr: %p", source);
 
+#ifdef PIE
+	FFSource *ffs = new FFSource(source);
+#else
 	FFSource *ffs = new FFSource(*source);
+#endif
 	h->priv_data = (void *)ffs;
 
 	ALOGD("android source open success");
