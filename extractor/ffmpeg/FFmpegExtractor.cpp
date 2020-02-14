@@ -1209,6 +1209,30 @@ void FFmpegExtractor::printTime(int64_t time)
 }
 
 #ifdef PIE
+bool FFmpegExtractor::MakeAVCCodecSpecificData(MetaDataBase &meta, const uint8_t *data, size_t size)
+{
+    int32_t width;
+    int32_t height;
+    int32_t sarWidth;
+    int32_t sarHeight;
+    sp<ABuffer> accessUnit = new ABuffer((void*)data,  size);
+    sp<ABuffer> csd = android::MakeAVCCodecSpecificData(accessUnit, &width, &height, &sarWidth, &sarHeight);
+    if (csd == nullptr) {
+        return false;
+    }
+    meta.setCString(kKeyMIMEType, MEDIA_MIMETYPE_VIDEO_AVC);
+
+    meta.setData(kKeyAVCC, kTypeAVCC, csd->data(), csd->size());
+    meta.setInt32(kKeyWidth, width);
+    meta.setInt32(kKeyHeight, height);
+    if (sarWidth > 0 && sarHeight > 0) {
+        meta.setInt32(kKeySARWidth, sarWidth);
+        meta.setInt32(kKeySARHeight, sarHeight);
+    }
+
+    return true;
+}
+
 int32_t FFmpegExtractor::stream_component_open(int32_t stream_index)
 {
 	AVCodecContext *avctx;
