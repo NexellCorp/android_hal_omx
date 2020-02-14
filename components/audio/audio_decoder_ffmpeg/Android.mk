@@ -49,8 +49,6 @@ ifeq ($(ANDROID_VERSION), 9)
 LOCAL_LDLIBS += $(FFMPEG_PATH)/32bit/libs/libavutil.so
 LOCAL_LDLIBS += $(FFMPEG_PATH)/32bit/libs/libavcodec.so
 LOCAL_LDLIBS += $(FFMPEG_PATH)/32bit/libs/libavformat.so
-LOCAL_LDLIBS += $(FFMPEG_PATH)/32bit/libs/libavdevice.so
-LOCAL_LDLIBS += $(FFMPEG_PATH)/32bit/libs/libavfilter.so
 LOCAL_LDLIBS += $(FFMPEG_PATH)/32bit/libs/libswresample.so
 LOCAL_MODULE_OWNER := arm
 else

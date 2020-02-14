@@ -1209,6 +1209,30 @@ void FFmpegExtractor::printTime(int64_t time)
 }
 
 #ifdef PIE
+static bool MakeAVCCodecSpecificData_1(MetaDataBase &meta, const uint8_t *data, size_t size)
+{
+    int32_t width;
+    int32_t height;
+    int32_t sarWidth;
+    int32_t sarHeight;
+    sp<ABuffer> accessUnit = new ABuffer((void*)data,  size);
+    sp<ABuffer> csd = MakeAVCCodecSpecificData(accessUnit, &width, &height, &sarWidth, &sarHeight);
+    if (csd == nullptr) {
+        return false;
+    }
+    meta.setCString(kKeyMIMEType, MEDIA_MIMETYPE_VIDEO_AVC);
+
+    meta.setData(kKeyAVCC, kTypeAVCC, csd->data(), csd->size());
+    meta.setInt32(kKeyWidth, width);
+    meta.setInt32(kKeyHeight, height);
+    if (sarWidth > 0 && sarHeight > 0) {
+        meta.setInt32(kKeySARWidth, sarWidth);
+        meta.setInt32(kKeySARHeight, sarHeight);
+    }
+
+    return true;
+}
+
 int32_t FFmpegExtractor::stream_component_open(int32_t stream_index)
 {
 	AVCodecContext *avctx;
@@ -1357,7 +1381,7 @@ int32_t FFmpegExtractor::stream_component_open(int32_t stream_index)
 				sp<ABuffer> buffer = new ABuffer(avctx->extradata_size);
 				memcpy(buffer->data(), avctx->extradata, avctx->extradata_size);
 
-				MakeAVCCodecSpecificData(meta,buffer->data(),buffer->size());
+				MakeAVCCodecSpecificData_1(meta,buffer->data(),buffer->size());
 			}
 			break;
 		case AV_CODEC_ID_MPEG4:
