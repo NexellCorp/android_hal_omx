@@ -14,7 +14,7 @@ ANDROID_VERSION_STR := $(PLATFORM_VERSION)
 ANDROID_VERSION := $(firstword $(ANDROID_VERSION_STR))
 ifeq ($(ANDROID_VERSION), 9)
 LOCAL_MODULE_RELATIVE_PATH := extractors
-#LOCAL_VENDOR_MODULE := true
+LOCAL_VENDOR_MODULE := true
 LOCAL_CFLAGS += -DPIE
 LOCAL_CFLAGS += -DENABLE_FFMPEG_EXTRACTOR
 else
@@ -25,9 +25,6 @@ ifeq ($(ANDROID_VERSION), 9)
 LOCAL_LDLIBS += $(FFMPEG_PATH)/32bit/libs/libavutil.so
 LOCAL_LDLIBS += $(FFMPEG_PATH)/32bit/libs/libavcodec.so
 LOCAL_LDLIBS += $(FFMPEG_PATH)/32bit/libs/libavformat.so
-LOCAL_LDLIBS += $(FFMPEG_PATH)/32bit/libs/libavdevice.so
-LOCAL_LDLIBS += $(FFMPEG_PATH)/32bit/libs/libavfilter.so
-LOCAL_LDLIBS += $(FFMPEG_PATH)/32bit/libs/libswresample.so
 LOCAL_MODULE_OWNER := arm
 endif
 
@@ -61,15 +58,14 @@ LOCAL_C_INCLUDES_64 += \
 	$(FFMPEG_PATH)/64bit/include
 
 ifeq ($(ANDROID_VERSION), 9)
-LOCAL_STATIC_LIBRARIES := \
-	libstagefright_metadatautils \
-	libutils
-
 LOCAL_SHARED_LIBRARIES := \
-	liblog \
-	libstagefright_foundation \
-	libmediaextractor \
-	libbinder
+ 		liblog \
+ 		libstagefright_foundation \
+ 		libcutils \
+ 		libutils \
+ 		libmediaextractor \
+ 		libc \
+ 		libbinder
 endif
 
 

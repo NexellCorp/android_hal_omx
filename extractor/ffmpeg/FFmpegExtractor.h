@@ -156,6 +156,7 @@ private:
     void deInitStreams();
 #ifdef PIE
     void buildFileName(DataSourceBase *source);
+    bool MakeAVCCodecSpecificData(MetaDataBase &meta, const uint8_t *data, size_t size);
 #else
     void buildFileName(const sp<DataSource> &source);
 #endif
