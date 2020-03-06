@@ -234,7 +234,7 @@ int NX_DecodeRVFrame(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_QUEUE *pInQueue, NX
 		else
 		{
 			int32_t OutIdx = 0;
-			if( (OMX_FALSE == pDecComp->bInterlaced) && (OMX_FALSE == pDecComp->bOutBufCopy) )
+			if( (OMX_FALSE == pDecComp->bInterlaced) && (OMX_FALSE == pDecComp->bOutBufCopy) && (pDecComp->bUseNativeBuffer == OMX_TRUE) )
 			{
 				OutIdx = decOut.dispIdx;
 			}
@@ -257,11 +257,22 @@ int NX_DecodeRVFrame(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_QUEUE *pInQueue, NX
 				ErrMsg("Unexpected Buffer Handling!!!! Goto Exit\n");
 				goto Exit;
 			}
+			else if (pDecComp->bUseNativeBuffer == OMX_FALSE) //use in cts
+			{
+				NX_VID_MEMORY_INFO *pImg = &decOut.hImg;
+				CopySurfaceToBufferYV12( (OMX_U8 *)pImg->pBuffer[0], pOutBuf->pBuffer, pDecComp->width, pDecComp->height );
+				pOutBuf->nFilledLen = pDecComp->width * pDecComp->height * 3 / 2;
+				NX_V4l2DecClrDspFlag( pDecComp->hVpuCodec, NULL, decOut.dispIdx );
+			}
+			else
+			{
+				pOutBuf->nFilledLen = sizeof(struct private_handle_t);
+			}
+
 			pDecComp->outBufferValidFlag[OutIdx] = 1;
 			pDecComp->outBufferUseFlag[OutIdx] = 0;
 			pDecComp->curOutBuffers --;
 
-			pOutBuf->nFilledLen = sizeof(struct private_handle_t);
 			if( 0 != PopVideoTimeStamp(pDecComp, &pOutBuf->nTimeStamp, &pOutBuf->nFlags )  )
 			{
 				pOutBuf->nTimeStamp = pInBuf->nTimeStamp;
