@@ -8,6 +8,7 @@
 #include "NX_DecoderUtil.h"
 #include "NX_AVCUtil.h"
 
+#if 0
 static int Mpeg2CheckPortReconfiguration( NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, OMX_BYTE inBuf, OMX_S32 inSize )
 {
 	if ( (inBuf != NULL) && (inSize > 0) )
@@ -88,6 +89,68 @@ static int Mpeg2CheckPortReconfiguration( NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, O
 
 	return 0;
 }
+#else
+static int Mpeg2CheckPortReconfiguration( NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, OMX_BYTE inBuf, OMX_S32 inSize )
+{
+	if ( (inBuf != NULL) && (inSize > 0) )
+	{
+		int32_t w,h;	//	width, height, left, top, right, bottom
+		OMX_BYTE pbyStrm = inBuf;
+		uint32_t readSizeBit = 0;
+		uint32_t remainSizeBit = inSize * 8;
+
+		do
+		{
+			GetBitContext gb;
+			remainSizeBit = remainSizeBit - readSizeBit;
+			if( remainSizeBit < 6*8 )
+				break;
+			if( readSizeBit > 1024*8 )
+				break;
+			init_get_bits(&gb, pbyStrm, remainSizeBit);
+			pbyStrm++;
+
+			OMX_BYTE data[4];
+			data[0] = (OMX_BYTE)get_bits(&gb, 8);
+			data[1] = (OMX_BYTE)get_bits(&gb, 8);
+			data[2] = (OMX_BYTE)get_bits(&gb, 8);
+			data[3] = (OMX_BYTE)get_bits(&gb, 8);
+			readSizeBit = readSizeBit + 8*4;
+
+			// SPS start code
+			if ( (int32_t)data[0] == 0x00 && (int32_t)data[1] == 0x00 && (int32_t)data[2] == 0x01 && (int32_t)data[3] == 0xb3 )
+			{
+				{
+					w = get_bits(&gb, 12);
+					h = get_bits(&gb, 12);
+					readSizeBit = readSizeBit + 12*2;
+					{
+						if( pDecComp->width != w || pDecComp->height != h )
+						{
+							DbgMsg("New Video Resolution = %ld x %ld --> %d x %d\n", pDecComp->width, pDecComp->height, w, h);
+
+							pDecComp->bPortReconfigure 		= OMX_TRUE;
+							pDecComp->PortReconfigureWidth 	= w;
+							pDecComp->PortReconfigureHeight = h;
+
+							return 1;
+						}
+						else
+						{
+							// DbgMsg("Video Resolution = %ld x %ld --> %d x %d\n", pDecComp->width, pDecComp->height, w, h);
+							return 0;
+						}
+					}
+					break;
+				}
+			}
+		} while(1);
+	}
+
+	return 0;
+}
+#endif
+
 int NX_DecodeMpeg2Frame(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_QUEUE *pInQueue, NX_QUEUE *pOutQueue)
 {
 	OMX_BUFFERHEADERTYPE* pInBuf = NULL, *pOutBuf = NULL;
@@ -346,7 +409,7 @@ int NX_DecodeMpeg2Frame(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_QUEUE *pInQueue,
 		else
 		{
 			int32_t OutIdx = 0;
-			if( (OMX_FALSE == pDecComp->bInterlaced) && (OMX_FALSE == pDecComp->bOutBufCopy) )
+			if( (OMX_FALSE == pDecComp->bInterlaced) && (OMX_FALSE == pDecComp->bOutBufCopy) && (pDecComp->bUseNativeBuffer == OMX_TRUE) )
 			{
 				OutIdx = decOut.dispIdx;
 			}
@@ -375,11 +438,21 @@ int NX_DecodeMpeg2Frame(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_QUEUE *pInQueue,
 				ErrMsg("Unexpected Buffer Handling!!!! Goto Exit\n");
 				goto Exit;
 			}
+			else if (pDecComp->bUseNativeBuffer == OMX_FALSE) //use in cts
+			{
+				NX_VID_MEMORY_INFO *pImg = &decOut.hImg;
+				CopySurfaceToBufferYV12( (OMX_U8 *)pImg->pBuffer[0], pOutBuf->pBuffer, pDecComp->width, pDecComp->height );
+				pOutBuf->nFilledLen = pDecComp->width * pDecComp->height * 3 / 2;
+				NX_V4l2DecClrDspFlag( pDecComp->hVpuCodec, NULL, decOut.dispIdx );
+			}
+			else
+			{
+				pOutBuf->nFilledLen = sizeof(struct private_handle_t);
+			}
 			pDecComp->outBufferValidFlag[OutIdx] = 1;
 			pDecComp->outBufferUseFlag[OutIdx] = 0;
 			pDecComp->curOutBuffers --;
 
-			pOutBuf->nFilledLen = sizeof(struct private_handle_t);
 			if( 0 != PopVideoTimeStamp(pDecComp, &pOutBuf->nTimeStamp, &pOutBuf->nFlags )  )
 			{
 				pOutBuf->nTimeStamp = pInBuf->nTimeStamp;
