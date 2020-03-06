@@ -35,6 +35,7 @@ void closeVideoCodec(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp);
 int decodeVideoFrame(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_QUEUE *pInQueue, NX_QUEUE *pOutQueue);
 int processEOS(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp);
 int processEOSforFlush(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp);
+int portChangeProcessEOS(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp);
 
 static OMX_S32		gstNumInstance = 0;
 static OMX_S32		gstMaxInstance = 3;
@@ -413,6 +414,9 @@ static OMX_ERRORTYPE NX_VidDec_GetParameter (OMX_HANDLETYPE hComp, OMX_INDEXTYPE
 					pPortDef->format.video.nStride = pDecComp->pOutputPort->stdPortDef.format.video.nFrameWidth;
 					pPortDef->format.video.nSliceHeight = pDecComp->pOutputPort->stdPortDef.format.video.nFrameHeight;
 				}
+
+				pDecComp->dsp_width = pPortDef->format.video.nFrameWidth;
+				pDecComp->dsp_height = pPortDef->format.video.nFrameHeight;
 			}
 			break;
 		}
@@ -1102,7 +1106,7 @@ static OMX_ERRORTYPE NX_VidDec_FillThisBuffer(OMX_HANDLETYPE hComp, OMX_BUFFERHE
 			{
 				if( pDecComp->outBufferValidFlag[i] )
 				{
-					if ( (OMX_FALSE == pDecComp->bInterlaced) && (OMX_FALSE == pDecComp->bOutBufCopy) )
+					if ( (OMX_FALSE == pDecComp->bInterlaced) && (OMX_FALSE == pDecComp->bOutBufCopy) && (pDecComp->bUseNativeBuffer == OMX_TRUE) )
 					{
 						NX_V4l2DecClrDspFlag( pDecComp->hVpuCodec, NULL, i );
 					}
@@ -1753,6 +1757,10 @@ static void NX_VidDec_BufferMgmtThread( void *arg )
 				{
 					processEOS( pDecComp );
 				}
+				else if( (pDecComp->bPortReconfigure == OMX_TRUE)  && (pDecComp->curOutBuffers > 1) )
+				{
+					portChangeProcessEOS( pDecComp );
+				}
 			}
 			pthread_mutex_unlock( &pDecComp->hBufMutex );
 		}
@@ -1843,6 +1851,8 @@ int openVideoCodec(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp)
 	FUNC_IN;
 
 	pDecComp->isOutIdr = OMX_FALSE;
+	pDecComp->inFrameCount = 0;
+	pDecComp->outFrameCount = 0;
 
 	//	FIXME : Move to Port SetParameter Part
 	CodecTagToMp4Class( pDecComp->codecTag, &pDecComp->videoCodecId, &mp4Class );
@@ -1939,7 +1949,6 @@ void closeVideoCodec(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp)
 		else
 			pDecComp->codecSpecificDataSize = 0;
 		pDecComp->bNeedSequenceData = 0;
-		FUNC_OUT;
 	}
 	FUNC_OUT;
 }
@@ -2192,16 +2201,27 @@ int processEOS(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp)
 
 	if( pDecComp->hVpuCodec && pDecComp->bInitialized )
 	{
-		decIn.strmBuf = 0;
-		decIn.strmSize = 0;
-		decIn.timeStamp = 0;
-		decIn.eos = 1;
+		int32_t processEOSCount = 0;
 
-		ret = NX_V4l2DecDecodeFrame( pDecComp->hVpuCodec, &decIn, &decOut );
+		do {
+			decIn.strmBuf = 0;
+			decIn.strmSize = 0;
+			decIn.timeStamp = 0;
+			decIn.eos = 1;
+			processEOSCount++;
+			ret = NX_V4l2DecDecodeFrame( pDecComp->hVpuCodec, &decIn, &decOut );
+			if( (ret == VID_ERR_NONE && decOut.dispIdx >= 0) ||  //When processing eos after inputting 1 frame
+			 (ret != VID_ERR_NONE && decOut.dispIdx < 0) ||
+			 (processEOSCount > 3) )
+			{
+				break;
+			}
+		}while(1);
+
 		if( ret==VID_ERR_NONE && decOut.dispIdx >= 0 && ( decOut.dispIdx < NX_OMX_MAX_BUF ) )
 		{
 			int32_t outIdx = 0;
-			if( (OMX_FALSE == pDecComp->bInterlaced) && (OMX_FALSE == pDecComp->bOutBufCopy) )
+			if( (OMX_FALSE == pDecComp->bInterlaced) && (OMX_FALSE == pDecComp->bOutBufCopy) && (pDecComp->bUseNativeBuffer == OMX_TRUE) )
 			{
 				outIdx = decOut.dispIdx;
 			}
@@ -2252,7 +2272,17 @@ int processEOS(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp)
 					pDecComp->outBufferUseFlag[outIdx] = 0;
 					pDecComp->curOutBuffers --;
 
-					pOutBuf->nFilledLen = sizeof(struct private_handle_t);
+					if (pDecComp->bUseNativeBuffer == OMX_FALSE)
+					{
+						NX_VID_MEMORY_INFO *pImg = &decOut.hImg;
+						CopySurfaceToBufferYV12( (OMX_U8 *)pImg->pBuffer[0], pOutBuf->pBuffer, pDecComp->width, pDecComp->height );
+						pOutBuf->nFilledLen = pDecComp->width * pDecComp->height * 3 / 2;
+						NX_V4l2DecClrDspFlag( pDecComp->hVpuCodec, NULL, decOut.dispIdx );
+					}
+					else
+					{
+						pOutBuf->nFilledLen = sizeof(struct private_handle_t);
+					}
 				}
 
 				if( OMX_TRUE == pDecComp->bInterlaced )
@@ -2309,6 +2339,179 @@ int processEOS(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp)
 			}
 		}
 	}
+	return 0;
+}
+
+int portChangeProcessEOS(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp)
+{
+	OMX_BUFFERHEADERTYPE *pOutBuf = NULL;
+	OMX_S32 i;
+	OMX_S32 ret;
+	NX_V4L2DEC_IN decIn;
+	NX_V4L2DEC_OUT decOut;
+
+	if( pDecComp->hVpuCodec && pDecComp->bInitialized )
+	{
+		decIn.strmBuf = 0;
+		decIn.strmSize = 0;
+		decIn.timeStamp = 0;
+		decIn.eos = 1;
+
+		ret = NX_V4l2DecDecodeFrame( pDecComp->hVpuCodec, &decIn, &decOut );
+
+		if( ret==VID_ERR_NONE && decOut.dispIdx >= 0 && ( decOut.dispIdx < NX_OMX_MAX_BUF ) )
+		{
+			int32_t outIdx = 0;
+			if( (OMX_FALSE == pDecComp->bInterlaced) && (OMX_FALSE == pDecComp->bOutBufCopy) && (pDecComp->bUseNativeBuffer == OMX_TRUE) )
+			{
+				outIdx = decOut.dispIdx;
+			}
+			else // TRUE == bInterlaced,bOutBufCopy
+			{
+				outIdx = GetUsableBufferIdx(pDecComp);
+			}
+
+      		pOutBuf = pDecComp->pOutputBuffers[outIdx];
+
+			if( pDecComp->bEnableThumbNailMode == OMX_TRUE )
+			{
+				//	Thumbnail Mode
+				NX_VID_MEMORY_INFO *pImg = &decOut.hImg;
+				NX_PopQueue( pDecComp->pOutputPortQueue, (void**)&pOutBuf );
+
+				CopySurfaceToBufferYV12( (OMX_U8 *)pImg->pBuffer[0], pOutBuf->pBuffer, pDecComp->width, pDecComp->height );
+
+				NX_V4l2DecClrDspFlag( pDecComp->hVpuCodec, NULL, decOut.dispIdx );
+
+				pOutBuf->nFilledLen = pDecComp->width * pDecComp->height * 3 / 2;
+			}
+			else
+			{
+				//	Native Window Buffer Mode
+				//	Get Output Buffer Pointer From Output Buffer Pool
+				if( pDecComp->outBufferUseFlag[outIdx] == 0 )
+				{
+				
+					NX_V4l2DecClrDspFlag( pDecComp->hVpuCodec, NULL, decOut.dispIdx );
+
+					ErrMsg("portChangeProcessEOS(): [EOS]Unexpected Buffer Handling!!!! Goto Exit:portChange\n");
+
+					for(i=0; i<NX_OMX_MAX_BUF; i++)
+					{
+						outIdx = GetUsableBufferIdx(pDecComp);
+						if( pDecComp->outBufferUseFlag[outIdx] != 0 )
+						{
+							DbgMsg("[portChangeProcessEOS(): EOS] DummyBuf Send !!!:PortChange\n");
+							pOutBuf = pDecComp->pOutputBuffers[outIdx];
+							pDecComp->outBufferUseFlag[outIdx] = 0;
+							pDecComp->curOutBuffers --;
+							pOutBuf->nFilledLen = 0;
+							break;
+						}
+					}
+
+				}
+				else
+				{
+					pDecComp->outBufferValidFlag[outIdx] = 1;
+					pDecComp->outBufferUseFlag[outIdx] = 0;
+					pDecComp->curOutBuffers --;
+
+					if (pDecComp->bUseNativeBuffer == OMX_FALSE)
+					{
+						NX_VID_MEMORY_INFO *pImg = &decOut.hImg;
+						CopySurfaceToBufferYV12( (OMX_U8 *)pImg->pBuffer[0], pOutBuf->pBuffer, pDecComp->width, pDecComp->height );
+						pOutBuf->nFilledLen = pDecComp->width * pDecComp->height * 3 / 2;
+						NX_V4l2DecClrDspFlag( pDecComp->hVpuCodec, NULL, decOut.dispIdx );
+					}
+					else
+					{
+						pOutBuf->nFilledLen = sizeof(struct private_handle_t);
+					}
+				}
+
+				if( OMX_TRUE == pDecComp->bInterlaced )
+				{
+					DeInterlaceFrame( pDecComp, &decOut );
+				}
+				else if( OMX_TRUE == pDecComp->bOutBufCopy )
+				{
+					OutBufCopy( pDecComp, &decOut );
+				}
+			}
+
+			if( 0 != PopVideoTimeStamp(pDecComp, &pOutBuf->nTimeStamp, &pOutBuf->nFlags )  )
+			{
+				pOutBuf->nTimeStamp = -1;
+				pOutBuf->nFlags     = OMX_BUFFERFLAG_ENDOFFRAME;	//	Frame Flag
+			}
+
+			DbgMsg(" ~~~~~~~ portChangeProcessEOS():pOutBuf(%p),decOut.dispIdx(%d)!!!\n",pOutBuf,decOut.dispIdx);
+
+			pOutBuf->nFlags     = OMX_BUFFERFLAG_ENDOFFRAME;
+
+			TRACE("[%6ld/%6ld] PortChange Receive, Flag = 0x%08x,decOut.dispIdx(%d) : portChange\n",			
+				pDecComp->inFrameCount, pDecComp->outFrameCount, (unsigned int)pOutBuf->nFlags,decOut.dispIdx);
+			pDecComp->outFrameCount++;
+			pDecComp->pCallbacks->FillBufferDone(pDecComp->hComp, pDecComp->hComp->pApplicationPrivate, pOutBuf);
+
+			return 0;
+		}
+
+		for( i=0 ; i<NX_OMX_MAX_BUF ; i++ )
+		{
+			//	Find Matching Buffer Pointer
+			if( pDecComp->outBufferUseFlag[i] )
+			{
+				pDecComp->pOutputBuffers[i]->nFilledLen = 0;
+				pDecComp->pCallbacks->FillBufferDone( pDecComp->hComp, pDecComp->hComp->pApplicationPrivate, pDecComp->pOutputBuffers[i] );
+				pDecComp->outBufferUseFlag[i] = 0;
+				pDecComp->curOutBuffers -- ;
+				//DbgMsg("pDecComp->pOutputBuffers[%2ld] = %p, pDecComp->curOutBuffers(%d)\n",  i, pDecComp->pOutputBuffers[i],pDecComp->curOutBuffers);
+			}									
+
+			if( pDecComp->outBufferValidFlag[i] )
+			{
+				pDecComp->outBufferValidFlag[i] = 0;
+			}
+		}
+	}
+
+	if( pDecComp->hVpuCodec )
+	{
+		//Event PortChange
+		pDecComp->pOutputPort->stdPortDef.format.video.nFrameWidth  = pDecComp->width  = pDecComp->PortReconfigureWidth;
+		pDecComp->pOutputPort->stdPortDef.format.video.nFrameHeight = pDecComp->height = pDecComp->PortReconfigureHeight;
+
+		pDecComp->dsp_width  = pDecComp->PortReconfigureWidth;
+		pDecComp->dsp_height = pDecComp->PortReconfigureHeight;
+
+		//	Native Mode
+		if( pDecComp->bUseNativeBuffer )
+		{
+			pDecComp->pOutputPort->stdPortDef.nBufferSize = 4096;
+		}
+		else
+		{
+			pDecComp->pOutputPort->stdPortDef.nBufferSize = ((((pDecComp->PortReconfigureWidth+15)>>4)<<4) * (((pDecComp->PortReconfigureHeight+15)>>4)<<4))*3/2;
+		}
+
+		DbgMsg("portChangeProcessEOS(): Need Port Reconfiguration  __LINE__(%d)\n",__LINE__);
+		//	Need Port Reconfiguration
+		SendEvent( (NX_BASE_COMPNENT*)pDecComp, OMX_EventPortSettingsChanged, OMX_DirOutput, 0, NULL );
+
+		if( pDecComp->hVpuCodec && pDecComp->bInitialized )
+		{
+			InitVideoTimeStamp(pDecComp);
+			pDecComp->minRequiredFrameBuffer = 1;
+			closeVideoCodec(pDecComp);
+			openVideoCodec(pDecComp);
+		}
+
+		pDecComp->pOutputPort->stdPortDef.bEnabled = OMX_FALSE;
+		pDecComp->bPortReconfigure 		= OMX_FALSE;	
+	}
+
 	return 0;
 }
 

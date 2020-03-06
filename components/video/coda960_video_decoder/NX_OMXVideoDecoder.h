@@ -236,6 +236,9 @@ struct tNX_VIDDEC_VIDEO_COMP_TYPE{
 	void						*hDeinterlace;
 
 	OMX_BOOL					bPortReconfigure;
+	OMX_S32						PortReconfigureWidth;
+	OMX_S32						PortReconfigureHeight;
+
 	OMX_BOOL					bIsPortDisable;
 	NX_SEMAPHORE				*hPortCtrlSem;
 

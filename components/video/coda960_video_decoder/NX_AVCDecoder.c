@@ -12,6 +12,7 @@
 //	From NX_AVCUtil
 int avc_get_video_size(unsigned char *buf, int buf_size, int *width, int *height);
 
+#if 0
 static int AVCCheckPortReconfiguration( NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, OMX_BYTE inBuf, OMX_S32 inSize )
 {
 	if ( (inBuf != NULL) && (inSize > 0) )
@@ -78,6 +79,53 @@ static int AVCCheckPortReconfiguration( NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, OMX
 
 	return 0;
 }
+#else
+static int AVCCheckPortReconfiguration( NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, OMX_BYTE inBuf, OMX_S32 inSize )
+{
+	if ( (inBuf != NULL) && (inSize > 0) )
+	{
+		int32_t w = 0 ,h = 0;	//	width, height, left, top, right, bottom
+		OMX_BYTE pbyStrm = inBuf;
+		uint32_t uPreFourByte = (uint32_t)-1;
+
+		do
+		{
+			if ( pbyStrm >= (inBuf + inSize) )		break;
+			uPreFourByte = (uPreFourByte << 8) + *pbyStrm++;
+
+			if ( uPreFourByte == 0x00000001 || uPreFourByte<<8 == 0x00000100 )
+			{
+				// SPS start code
+				if ( (pbyStrm[0] & 0x1F) == 7 )
+				{
+					pbyStrm = ( uPreFourByte == 0x00000001 ) ? ( pbyStrm - 4 ) : ( pbyStrm - 3 );
+					if( avc_get_video_size( pbyStrm, inSize - (pbyStrm - inBuf), &w, &h ) )
+					{
+						if( pDecComp->width != w || pDecComp->height != h )
+						{
+							DbgMsg("New Video Resolution = %ld x %ld --> %d x %d\n", pDecComp->width, pDecComp->height, w, h);
+
+							pDecComp->bPortReconfigure 		= OMX_TRUE;
+							pDecComp->PortReconfigureWidth 	= w;
+							pDecComp->PortReconfigureHeight = h;
+
+							return 1;
+						}
+						else
+						{
+							// DbgMsg("Video Resolution = %ld x %ld --> %d x %d\n", pDecComp->width, pDecComp->height, w, h);
+							return 0;
+						}
+					}
+					break;
+				}
+			}
+		} while(1);
+	}
+
+	return 0;
+}
+#endif
 
 int NX_DecodeAvcFrame(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_QUEUE *pInQueue, NX_QUEUE *pOutQueue)
 {
@@ -383,7 +431,7 @@ int NX_DecodeAvcFrame(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_QUEUE *pInQueue, N
 		else
 		{
 			int32_t OutIdx = 0;
-			if( (OMX_FALSE == pDecComp->bInterlaced) && (OMX_FALSE == pDecComp->bOutBufCopy) )
+			if( (OMX_FALSE == pDecComp->bInterlaced) && (OMX_FALSE == pDecComp->bOutBufCopy) && (pDecComp->bUseNativeBuffer == OMX_TRUE) )
 			{
 				OutIdx = decOut.dispIdx;
 			}
@@ -407,15 +455,22 @@ int NX_DecodeAvcFrame(NX_VIDDEC_VIDEO_COMP_TYPE *pDecComp, NX_QUEUE *pInQueue, N
 				ErrMsg("Unexpected Buffer Handling!!!! Goto Exit(%ld,%d)\n", pDecComp->curOutBuffers, decOut.dispIdx);
 				goto Exit;
 			}
+			else if (pDecComp->bUseNativeBuffer == OMX_FALSE)	 //use in cts
+			{
+				NX_VID_MEMORY_INFO *pImg = &decOut.hImg;
+				CopySurfaceToBufferYV12( (OMX_U8 *)pImg->pBuffer[0], pOutBuf->pBuffer, pDecComp->width, pDecComp->height );
+				pOutBuf->nFilledLen = pDecComp->width * pDecComp->height * 3 / 2;
+				NX_V4l2DecClrDspFlag( pDecComp->hVpuCodec, NULL, decOut.dispIdx );
+			}
 			else
 			{
 				DbgBuffer("curOutBuffers(%ld),idx(%d)\n", pDecComp->curOutBuffers, decOut.dispIdx);
+				pOutBuf->nFilledLen = sizeof(struct private_handle_t);
 			}
 			pDecComp->outBufferValidFlag[OutIdx] = 1;
 			pDecComp->outBufferUseFlag[OutIdx] = 0;
 			pDecComp->curOutBuffers --;
-
-			pOutBuf->nFilledLen = sizeof(struct private_handle_t);
+			
 			if( 0 != PopVideoTimeStamp(pDecComp, &pOutBuf->nTimeStamp, &pOutBuf->nFlags )  )
 			{
 				pOutBuf->nTimeStamp = pInBuf->nTimeStamp;
