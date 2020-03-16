@@ -23,7 +23,11 @@ LOCAL_CFLAGS += -DOUT_BUF_COPY=0
 
 NX_HW_TOP := $(TOP)/hardware/nexell/s5pxx18
 NX_HW_INCLUDE := $(NX_HW_TOP)/include
+ifeq ($(ANDROID_VERSION), 9)
+NX_LIBRARY_TOP := $(TOP)/vendor/nexell/library
+else
 NX_LIBRARY_TOP := $(TOP)/device/nexell/library
+endif
 
 OMX_TOP := $(NX_HW_TOP)/omx
 

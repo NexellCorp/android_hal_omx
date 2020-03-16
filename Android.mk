@@ -8,7 +8,13 @@ NX_OMX_CFLAGS := -Wall -fpic -pipe -O2
 
 NX_HW_TOP := $(TOP)/hardware/nexell/s5pxx18/
 NX_HW_INCLUDE := $(NX_HW_TOP)/include
+ANDROID_VERSION_STR := $(PLATFORM_VERSION)
+ANDROID_VERSION := $(firstword $(ANDROID_VERSION_STR))
+ifeq ($(ANDROID_VERSION), 9)
+NX_LIBRARY_TOP := $(TOP)/vendor/nexell/library
+else
 NX_LIBRARY_TOP := $(TOP)/device/nexell/library
+endif
 
 NX_OMX_TOP := $(NX_HW_TOP)/omx
 NX_OMX_COMM := $(NX_OMX_TOP)/common
