@@ -6,14 +6,15 @@ LOCAL_PRELINK_MODULE := false
 
 NX_HW_TOP := $(TOP)/hardware/nexell/s5pxx18
 NX_HW_INCLUDE := $(NX_HW_TOP)/include
-NX_LIBRARY_TOP := $(TOP)/device/nexell/library
 
 ANDROID_VERSION_STR := $(PLATFORM_VERSION)
 ANDROID_VERSION := $(firstword $(ANDROID_VERSION_STR))
 ifeq ($(ANDROID_VERSION), 9)
 LOCAL_VENDOR_MODULE := true
+NX_LIBRARY_TOP := $(TOP)/vendor/nexell/library
 else
 LOCAL_MODULE_TAGS := optional
+NX_LIBRARY_TOP := $(TOP)/device/nexell/library
 endif
 
 ifeq "7" "$(ANDROID_VERSION)"
