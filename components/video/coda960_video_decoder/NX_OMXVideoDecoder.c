@@ -519,6 +519,24 @@ static OMX_ERRORTYPE NX_VidDec_SetParameter (OMX_HANDLETYPE hComp, OMX_INDEXTYPE
 				pDecComp->videoCodecId = NX_MP4_DEC;
 				pDecComp->codecTag = MKTAG('m','p','4','3');
 			}
+			else if ( !strcmp( (OMX_STRING)pInRole->cRole, "video_decoder.div3") )
+			{
+				//	Set Input Format
+				pDecComp->inputFormat.eCompressionFormat = OMX_VIDEO_CodingMPEG4;
+				pDecComp->inputFormat.eColorFormat = OMX_COLOR_FormatUnused;
+				pDecComp->inputFormat.nPortIndex= IN_PORT;
+				pDecComp->videoCodecId = NX_DIV3_DEC;
+				pDecComp->codecTag = MKTAG('d','i','v','3');
+			}
+			else if ( !strcmp( (OMX_STRING)pInRole->cRole, "video_decoder.xvid") )
+			{
+				//	Set Input Format
+				pDecComp->inputFormat.eCompressionFormat = OMX_VIDEO_CodingMPEG4;
+				pDecComp->inputFormat.eColorFormat = OMX_COLOR_FormatUnused;
+				pDecComp->inputFormat.nPortIndex= IN_PORT;
+				pDecComp->videoCodecId = NX_XVID_DEC;
+				pDecComp->codecTag = MKTAG('x','v','i','d');
+			}
 			else if ( !strcmp( (OMX_STRING)pInRole->cRole, "video_decoder.mpeg2") )
 			{
 				//	Set Input Format

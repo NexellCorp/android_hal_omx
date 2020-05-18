@@ -72,6 +72,8 @@ static OMX_ERRORTYPE RegisterAllComponents()
 	NX_OMXRegisterComponent("OMX.NX.VIDEO_DECODER.3gpp",			"libNX_OMX_VIDEO_DECODER",			"video_decoder.h263",		NULL);
 	NX_OMXRegisterComponent("OMX.NX.VIDEO_DECODER.3gpp",			"libNX_OMX_VIDEO_DECODER",			"video_decoder.3gpp",		NULL);
 	NX_OMXRegisterComponent("OMX.NX.VIDEO_DECODER.mp43",			"libNX_OMX_VIDEO_DECODER",			"video_decoder.mp43",		NULL);
+	NX_OMXRegisterComponent("OMX.NX.VIDEO_DECODER.div3",			"libNX_OMX_VIDEO_DECODER",			"video_decoder.div3",		NULL);		// added by hcjun(20.05.15)
+	NX_OMXRegisterComponent("OMX.NX.VIDEO_DECODER.xvid",			"libNX_OMX_VIDEO_DECODER",			"video_decoder.xvid",		NULL);		// added by hcjun(20.05.15)
 	NX_OMXRegisterComponent("OMX.NX.VIDEO_DECODER.flv",				"libNX_OMX_VIDEO_DECODER",			"video_decoder.x-flv",		NULL);
 	NX_OMXRegisterComponent("OMX.NX.VIDEO_DECODER.wmv",				"libNX_OMX_VIDEO_DECODER",			"video_decoder.x-ms-wmv",	NULL);
 	NX_OMXRegisterComponent("OMX.NX.VIDEO_DECODER.wvc1",			"libNX_OMX_VIDEO_DECODER",			"video_decoder.x-ms-wmv",	NULL);

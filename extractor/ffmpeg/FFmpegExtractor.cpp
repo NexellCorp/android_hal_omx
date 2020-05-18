@@ -73,6 +73,10 @@
 
 #define FF_MAX_EXTRADATA_SIZE ((1 << 28) - FF_INPUT_BUFFER_PADDING_SIZE)
 
+#ifndef MKTAG
+#define MKTAG(a,b,c,d) (a | (b << 8) | (c << 16) | (d << 24))
+#endif
+
 static unsigned int gstExtractorCounter = 0;
 
 enum {
@@ -1386,9 +1390,43 @@ int32_t FFmpegExtractor::stream_component_open(int32_t stream_index)
 			break;
 		case AV_CODEC_ID_MPEG4:
 		case AV_CODEC_ID_MSMPEG4V3:
-		case AV_CODEC_ID_FLV1:
 			ALOGV("MPEG4");
 			meta.setCString(kKeyMIMEType, MEDIA_MIMETYPE_VIDEO_MPEG4);
+
+			switch( avctx->codec_tag )
+			{
+				case MKTAG('D','I','V','3'):case MKTAG('d','i','v','3'):
+				case MKTAG('D','V','X','3'):case MKTAG('d','v','x','3'):
+				case MKTAG('D','I','V','X'):case MKTAG('d','i','v','x'):
+				case MKTAG('D','I','V','4'):case MKTAG('d','i','v','4'):
+				case MKTAG('D','I','V','5'):case MKTAG('d','i','v','5'):
+				case MKTAG('D','X','5','0'):case MKTAG('d','x','5','0'):
+				case MKTAG('D','I','V','6'):case MKTAG('d','i','v','6'):
+					ALOGV("MEDIA_MIMETYPE_VIDEO_DIV3");
+					meta.setCString(kKeyMIMEType, MEDIA_MIMETYPE_VIDEO_DIV3);
+					break;
+				case MKTAG('X','V','I','D'):case MKTAG('x','v','i','d'):
+					ALOGV("MEDIA_MIMETYPE_VIDEO_XVID");
+					meta.setCString(kKeyMIMEType, MEDIA_MIMETYPE_VIDEO_XVID);
+					break;
+
+				default:
+					break;
+			}
+
+			if( avctx->extradata_size>0 )
+			{
+				sp<ABuffer> csd = new ABuffer(avctx->extradata_size);
+				memcpy(csd->data(), avctx->extradata, avctx->extradata_size);
+				sp<ABuffer> esds = MakeMPEGVideoESDS(csd);
+				meta.setData(kKeyESDS, kTypeESDS, esds->data(), esds->size());
+				meta.setData(kKeyRawCodecSpecificData, 0, avctx->extradata, avctx->extradata_size);
+			}
+			meta.setInt32( kKeyFFCodecTag, avctx->codec_tag );
+			break;
+		case AV_CODEC_ID_FLV1:
+			ALOGV("FLV1");
+			meta.setCString(kKeyMIMEType, MEDIA_MIMETYPE_VIDEO_FLV);
 			if( avctx->extradata_size>0 )
 			{
 				sp<ABuffer> csd = new ABuffer(avctx->extradata_size);
@@ -1845,9 +1883,43 @@ int32_t FFmpegExtractor::stream_component_open(int32_t stream_index)
 			break;
 		case AV_CODEC_ID_MPEG4:
 		case AV_CODEC_ID_MSMPEG4V3:
-		case AV_CODEC_ID_FLV1:
 			ALOGV("MPEG4");
 			meta->setCString(kKeyMIMEType, MEDIA_MIMETYPE_VIDEO_MPEG4);
+
+			switch( avctx->codec_tag )
+			{
+				case MKTAG('D','I','V','3'):case MKTAG('d','i','v','3'):
+				case MKTAG('D','V','X','3'):case MKTAG('d','v','x','3'):
+				case MKTAG('D','I','V','X'):case MKTAG('d','i','v','x'):
+				case MKTAG('D','I','V','4'):case MKTAG('d','i','v','4'):
+				case MKTAG('D','I','V','5'):case MKTAG('d','i','v','5'):
+				case MKTAG('D','X','5','0'):case MKTAG('d','x','5','0'):
+				case MKTAG('D','I','V','6'):case MKTAG('d','i','v','6'):
+					ALOGV("MEDIA_MIMETYPE_VIDEO_DIV3");
+					meta->setCString(kKeyMIMEType, MEDIA_MIMETYPE_VIDEO_DIV3);
+					break;
+				case MKTAG('X','V','I','D'):case MKTAG('x','v','i','d'):
+					ALOGV("MEDIA_MIMETYPE_VIDEO_XVID");
+					meta->setCString(kKeyMIMEType, MEDIA_MIMETYPE_VIDEO_XVID);
+					break;
+
+				default:
+					break;
+			}
+
+			if( avctx->extradata_size>0 )
+			{
+				sp<ABuffer> csd = new ABuffer(avctx->extradata_size);
+				memcpy(csd->data(), avctx->extradata, avctx->extradata_size);
+				sp<ABuffer> esds = MakeMPEGVideoESDS(csd);
+				meta->setData(kKeyESDS, kTypeESDS, esds->data(), esds->size());
+				meta->setData(kKeyRawCodecSpecificData, 0, avctx->extradata, avctx->extradata_size);
+			}
+			meta->setInt32( kKeyFFCodecTag, avctx->codec_tag );
+			break;
+		case AV_CODEC_ID_FLV1:
+			ALOGV("FLV");
+			meta->setCString(kKeyMIMEType, MEDIA_MIMETYPE_VIDEO_FLV);
 			if( avctx->extradata_size>0 )
 			{
 				sp<ABuffer> csd = new ABuffer(avctx->extradata_size);
