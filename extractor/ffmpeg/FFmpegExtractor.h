@@ -199,6 +199,7 @@ private:
 };
 
 #ifdef PIE
+bool SniffAVIFFMPEG( DataSourceBase *source, float *confidence);
 bool SniffFFMPEG(DataSourceBase *source, float *confidence);
 #else
 bool SniffFFMPEG(

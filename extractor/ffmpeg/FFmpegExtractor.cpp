@@ -3324,6 +3324,26 @@ ErrorExit:
 }
 
 #ifdef PIE
+bool SniffAVIFFMPEG( DataSourceBase *source, float *confidence)
+{
+	ALOGI("SniffAVIFFMPEG");
+    char tmp[12];
+    if (source->readAt(0, tmp, 12) < 12) {
+        return false;
+    }
+
+    if (!memcmp(tmp, "RIFF", 4) && !memcmp(&tmp[8], "AVI ", 4)) {
+        // Just a tad over the mp3 extractor's confidence, since
+        // these .avi files may contain .mp3 content that otherwise would
+        // mistakenly lead to us identifying the entire file as a .mp3 file.
+        *confidence = 0.21;
+
+        return true;
+    }
+
+    return false;
+}
+
 bool SniffFFMPEG( DataSourceBase *source, float *confidence)
 {
 	ALOGI("SniffFFMPEG");
@@ -3381,33 +3401,6 @@ bool SniffFFMPEG( DataSourceBase *source, float *confidence)
 
 	return true;
 }
-
-extern "C" {
-// This is the only symbol that needs to be exported
-__attribute__ ((visibility ("default")))
-MediaExtractor::ExtractorDef GETEXTRACTORDEF() {
-	return {
-		MediaExtractor::EXTRACTORDEF_VERSION,
-		UUID("abbedd92-38c4-4904-a4c1-b3f45f123456"),
-		1,
-		"FFMPEG Extractor",
-		[](
-				DataSourceBase *source,
-				float *confidence,
-				void **,
-				MediaExtractor::FreeMetaFunc *) -> MediaExtractor::CreatorFunc {
-			if (SniffFFMPEG(source, confidence)) {
-				return [](
-						DataSourceBase *source,
-						void *) -> MediaExtractor* {
-					return new FFmpegExtractor(source);};
-			}
-			return NULL;
-		}
-	};
-}
-
-} // extern "C"
 
 #else
 bool SniffAVIFFMPEG(
