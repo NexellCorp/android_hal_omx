@@ -3324,6 +3324,45 @@ ErrorExit:
 }
 
 #ifdef PIE
+bool SniffMatroskaFFMPEG( DataSourceBase *source, float *confidence)
+{
+	ALOGI("SniffMatroskaFFMPEG");
+	const char *container = NULL;
+	bool bUseFfmpeg = false;
+
+	char uri[1024];
+	if(!source->getUri(uri, sizeof(uri)))
+	{
+		uri[0] = '\0';
+		return false;
+	}
+
+	ALOGI("ffmpeg uri: %s", uri);
+
+	if( strncmp("file://", uri, 7) && strlen(uri)!=0 )
+	{
+		return false;
+	}
+
+	container = Better2SniffFFMPEG(source, bUseFfmpeg, false);
+	if (!container)
+	{
+		ALOGW("sniff through Better2SniffFFMPEG failed, try BetterSniffFFMPEG");
+	}
+	else
+	{
+		ALOGI("sniff through Better2SniffFFMPEG success");
+	}
+
+	if (container == NULL)
+		return false;
+
+	if( !strcmp( container, MEDIA_MIMETYPE_CONTAINER_MATROSKA ) && !bUseFfmpeg )
+		*confidence = 0.59f;
+
+	return true;
+}
+
 bool SniffAVIFFMPEG( DataSourceBase *source, float *confidence)
 {
 	ALOGI("SniffAVIFFMPEG");
